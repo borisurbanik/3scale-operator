@@ -570,7 +570,6 @@ func (system *System) appPodVolumes() []v1.Volume {
 						Path: "service_discovery.yml",
 					},
 				},
-				DefaultMode: ptr.To(v1.ConfigMapVolumeSourceDefaultMode),
 			},
 		},
 	}
@@ -676,27 +675,19 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 					Annotations: system.appPodAnnotations(watchedSecretAnnotations),
 				},
 				Spec: v1.PodSpec{
-					Affinity:                      system.Options.AppAffinity,
-					Tolerations:                   system.Options.AppTolerations,
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
-					Volumes:                       system.appPodVolumes(),
-					InitContainers:                system.systemInit(containerImage),
+					Affinity:       system.Options.AppAffinity,
+					Tolerations:    system.Options.AppTolerations,
+					Volumes:        system.appPodVolumes(),
+					InitContainers: system.systemInit(containerImage),
 					Containers: []v1.Container{
 						{
-							Name:                     SystemAppMasterContainerName,
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							Args:                     []string{"env", "TENANT_MODE=master", "PORT=3002", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
-							Ports:                    system.appMasterPorts(),
-							Env:                      system.buildAppMasterContainerEnv(),
-							Resources:                *system.Options.AppMasterContainerResourceRequirements,
-							VolumeMounts:             system.appMasterContainerVolumeMounts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:         SystemAppMasterContainerName,
+							Image:        containerImage,
+							Args:         []string{"env", "TENANT_MODE=master", "PORT=3002", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
+							Ports:        system.appMasterPorts(),
+							Env:          system.buildAppMasterContainerEnv(),
+							Resources:    *system.Options.AppMasterContainerResourceRequirements,
+							VolumeMounts: system.appMasterContainerVolumeMounts(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -709,7 +700,7 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 40,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       10,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    40,
 							},
 							ReadinessProbe: &v1.Probe{
@@ -732,24 +723,22 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 60,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       30,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    10,
 							},
-							Stdin:     false,
-							StdinOnce: false,
-							TTY:       false,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Stdin:           false,
+							StdinOnce:       false,
+							TTY:             false,
 						},
 						{
-							Name:                     SystemAppProviderContainerName,
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							Args:                     []string{"env", "TENANT_MODE=provider", "PORT=3000", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
-							Ports:                    system.appProviderPorts(),
-							Env:                      system.buildAppProviderContainerEnv(),
-							Resources:                *system.Options.AppProviderContainerResourceRequirements,
-							VolumeMounts:             system.appProviderContainerVolumeMounts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:         SystemAppProviderContainerName,
+							Image:        containerImage,
+							Args:         []string{"env", "TENANT_MODE=provider", "PORT=3000", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
+							Ports:        system.appProviderPorts(),
+							Env:          system.buildAppProviderContainerEnv(),
+							Resources:    *system.Options.AppProviderContainerResourceRequirements,
+							VolumeMounts: system.appProviderContainerVolumeMounts(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -762,7 +751,7 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 40,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       10,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    40,
 							},
 							ReadinessProbe: &v1.Probe{
@@ -785,24 +774,22 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 60,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       30,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    10,
 							},
-							Stdin:     false,
-							StdinOnce: false,
-							TTY:       false,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Stdin:           false,
+							StdinOnce:       false,
+							TTY:             false,
 						},
 						{
-							Name:                     SystemAppDeveloperContainerName,
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							Args:                     []string{"env", "PORT=3001", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
-							Ports:                    system.appDeveloperPorts(),
-							Env:                      system.buildAppDeveloperContainerEnv(),
-							Resources:                *system.Options.AppDeveloperContainerResourceRequirements,
-							VolumeMounts:             system.appDeveloperContainerVolumeMounts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:         SystemAppDeveloperContainerName,
+							Image:        containerImage,
+							Args:         []string{"env", "PORT=3001", "container-entrypoint", "bundle", "exec", "unicorn", "-c", "config/unicorn.rb", "-E", "production", "config.ru"},
+							Ports:        system.appDeveloperPorts(),
+							Env:          system.buildAppDeveloperContainerEnv(),
+							Resources:    *system.Options.AppDeveloperContainerResourceRequirements,
+							VolumeMounts: system.appDeveloperContainerVolumeMounts(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -815,7 +802,7 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 40,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       10,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    40,
 							},
 							ReadinessProbe: &v1.Probe{
@@ -838,9 +825,10 @@ func (system *System) AppDeployment(ctx context.Context, k8sclient client.Client
 								InitialDelaySeconds: 60,
 								TimeoutSeconds:      10,
 								PeriodSeconds:       30,
-								SuccessThreshold:    1,
+								SuccessThreshold:    0,
 								FailureThreshold:    10,
 							},
+							ImagePullPolicy: v1.PullIfNotPresent,
 						},
 					},
 					ServiceAccountName:        "amp",
@@ -977,7 +965,6 @@ func (system *System) SidekiqPodVolumes() []v1.Volume {
 						Path: "service_discovery.yml",
 					},
 				},
-				DefaultMode: ptr.To(v1.ConfigMapVolumeSourceDefaultMode),
 			},
 		},
 	}
@@ -1082,27 +1069,20 @@ func (system *System) SidekiqDeployment(ctx context.Context, k8sclient client.Cl
 					Annotations: system.sidekiqPodAnnotations(watchedSecretAnnotations),
 				},
 				Spec: v1.PodSpec{
-					Affinity:                      system.Options.SidekiqAffinity,
-					Tolerations:                   system.Options.SidekiqTolerations,
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
-					Volumes:                       system.SidekiqPodVolumes(),
-					InitContainers:                system.sidekiqInit(containerImage),
+					Affinity:       system.Options.SidekiqAffinity,
+					Tolerations:    system.Options.SidekiqTolerations,
+					Volumes:        system.SidekiqPodVolumes(),
+					InitContainers: system.sidekiqInit(containerImage),
 					Containers: []v1.Container{
 						{
-							Name:                     SystemSidekiqName,
-							Image:                    containerImage,
-							Args:                     []string{"rake", "sidekiq:worker", "RAILS_MAX_THREADS=25"},
-							Env:                      system.buildSystemSidekiqContainerEnv(),
-							Resources:                *system.Options.SidekiqContainerResourceRequirements,
-							VolumeMounts:             system.sidekiqContainerVolumeMounts(),
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							Ports:                    system.sideKiqPorts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:            SystemSidekiqName,
+							Image:           containerImage,
+							Args:            []string{"rake", "sidekiq:worker", "RAILS_MAX_THREADS=25"},
+							Env:             system.buildSystemSidekiqContainerEnv(),
+							Resources:       *system.Options.SidekiqContainerResourceRequirements,
+							VolumeMounts:    system.sidekiqContainerVolumeMounts(),
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Ports:           system.sideKiqPorts(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -1523,14 +1503,14 @@ func (system *System) systemInit(containerImage string) []v1.Container {
 	if system.Options.SystemDbTLSEnabled {
 		return []v1.Container{
 			{
-				Name:            "set-permissions",
-				Image:           containerImage, // Minimal image for chmod
-				ImagePullPolicy: v1.PullIfNotPresent,
+				Name:  "set-permissions",
+				Image: containerImage, // Minimal image for chmod
 				Command: []string{
 					"sh",
 					"-c",
 					"cp /tls/* /writable-tls/ && chmod 0600 /writable-tls/*",
 				},
+				ImagePullPolicy:          v1.PullIfNotPresent,
 				TerminationMessagePath:   v1.TerminationMessagePathDefault,
 				TerminationMessagePolicy: v1.TerminationMessageReadFile,
 				VolumeMounts: []v1.VolumeMount{
@@ -1556,15 +1536,15 @@ func (system *System) sidekiqInit(containerImage string) []v1.Container {
 	var containers []v1.Container
 	// Base init container setup
 	initContainer := v1.Container{
-		Name:            SystemSideKiqInitContainerName,
-		Image:           containerImage,
-		ImagePullPolicy: v1.PullIfNotPresent,
+		Name:  SystemSideKiqInitContainerName,
+		Image: containerImage,
 		Command: []string{
 			"bash",
 			"-c",
 			"bundle exec sh -c \"until rake boot:redis && curl --output /dev/null --silent --fail --head http://system-master:3000/status; do sleep $SLEEP_SECONDS; done\"",
 		},
 		Env:                      append(system.SystemRedisEnvVars(), helper.EnvVarFromValue("SLEEP_SECONDS", "1")),
+		ImagePullPolicy:          v1.PullIfNotPresent,
 		TerminationMessagePath:   v1.TerminationMessagePathDefault,
 		TerminationMessagePolicy: v1.TerminationMessageReadFile,
 	}
@@ -1576,14 +1556,14 @@ func (system *System) sidekiqInit(containerImage string) []v1.Container {
 	if system.Options.SystemDbTLSEnabled {
 		// Set-permissions container for DB TLS
 		containers = append(containers, v1.Container{
-			Name:            "set-permissions",
-			Image:           containerImage,
-			ImagePullPolicy: v1.PullIfNotPresent,
+			Name:  "set-permissions",
+			Image: containerImage,
 			Command: []string{
 				"sh",
 				"-c",
 				"cp /tls/* /writable-tls/ && chmod 0600 /writable-tls/*",
 			},
+			ImagePullPolicy:          v1.PullIfNotPresent,
 			TerminationMessagePath:   v1.TerminationMessagePathDefault,
 			TerminationMessagePolicy: v1.TerminationMessageReadFile,
 			VolumeMounts: []v1.VolumeMount{

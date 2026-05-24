@@ -223,24 +223,16 @@ func (zync *Zync) Deployment(ctx context.Context, k8sclient client.Client, conta
 					Annotations: zync.zyncPodAnnotations(watchedSecretAnnotations),
 				},
 				Spec: v1.PodSpec{
-					Affinity:                      zync.Options.ZyncAffinity,
-					Tolerations:                   zync.Options.ZyncTolerations,
-					ServiceAccountName:            "amp",
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
-					InitContainers:                zync.zyncInit(containerImage),
+					Affinity:           zync.Options.ZyncAffinity,
+					Tolerations:        zync.Options.ZyncTolerations,
+					ServiceAccountName: "amp",
+					InitContainers:     zync.zyncInit(containerImage),
 					Containers: []v1.Container{
 						{
-							Name:                     ZyncName,
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							Ports:                    zync.zyncPorts(),
-							Env:                      zync.commonZyncEnvVars(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:  ZyncName,
+							Image: containerImage,
+							Ports: zync.zyncPorts(),
+							Env:   zync.commonZyncEnvVars(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									HTTPGet: &v1.HTTPGetAction{
@@ -388,20 +380,15 @@ func (zync *Zync) QueDeployment(ctx context.Context, k8sclient client.Client, co
 					Tolerations:                   zync.Options.ZyncQueTolerations,
 					ServiceAccountName:            "zync-que-sa",
 					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
+					TerminationGracePeriodSeconds: &[]int64{30}[0],
 					InitContainers:                zync.zyncQueInit(containerImage),
 					Containers: []v1.Container{
 						{
-							Name:                     "que",
-							Command:                  []string{"/usr/bin/bash"},
-							Args:                     []string{"-c", "bundle exec rake 'que[--worker-count 10]'"},
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullAlways,
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:            "que",
+							Command:         []string{"/usr/bin/bash"},
+							Args:            []string{"-c", "bundle exec rake 'que[--worker-count 10]'"},
+							Image:           containerImage,
+							ImagePullPolicy: v1.PullAlways,
 							LivenessProbe: &v1.Probe{
 								FailureThreshold:    3,
 								InitialDelaySeconds: 10,
@@ -462,14 +449,10 @@ func (zync *Zync) DatabaseDeployment(containerImage string) *k8sappsv1.Deploymen
 					Annotations: zync.Options.ZyncDatabasePodTemplateAnnotations,
 				},
 				Spec: v1.PodSpec{
-					Affinity:                      zync.Options.ZyncDatabaseAffinity,
-					Tolerations:                   zync.Options.ZyncDatabaseTolerations,
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
-					ServiceAccountName:            "amp",
+					Affinity:           zync.Options.ZyncDatabaseAffinity,
+					Tolerations:        zync.Options.ZyncDatabaseTolerations,
+					RestartPolicy:      v1.RestartPolicyAlways,
+					ServiceAccountName: "amp",
 					Containers: []v1.Container{
 						{
 							Name:  "postgresql",
@@ -486,9 +469,7 @@ func (zync *Zync) DatabaseDeployment(containerImage string) *k8sappsv1.Deploymen
 									MountPath: "/var/lib/pgsql/data",
 								},
 							},
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							ImagePullPolicy: v1.PullIfNotPresent,
 							Env: []v1.EnvVar{
 								{
 									Name:  "POSTGRESQL_USER",
@@ -520,23 +501,17 @@ func (zync *Zync) DatabaseDeployment(containerImage string) *k8sappsv1.Deploymen
 										Port: intstr.FromInt32(5432),
 									},
 								},
-								InitialDelaySeconds: 30,
 								TimeoutSeconds:      1,
-								PeriodSeconds:       10,
-								SuccessThreshold:    1,
-								FailureThreshold:    3,
+								InitialDelaySeconds: 30,
 							},
 							ReadinessProbe: &v1.Probe{
+								TimeoutSeconds:      1,
+								InitialDelaySeconds: 5,
 								ProbeHandler: v1.ProbeHandler{
 									Exec: &v1.ExecAction{
 										Command: []string{"/bin/sh", "-i", "-c", "psql -h 127.0.0.1 -U zync -q -d zync_production -c 'SELECT 1'"},
 									},
 								},
-								InitialDelaySeconds: 5,
-								TimeoutSeconds:      1,
-								PeriodSeconds:       10,
-								SuccessThreshold:    1,
-								FailureThreshold:    3,
 							},
 							Resources: zync.Options.DatabaseContainerResourceRequirements,
 						},
@@ -661,14 +636,14 @@ func (zync *Zync) zyncInit(containerImage string) []v1.Container {
 	if zync.Options.ZyncDbTLSEnabled {
 		return []v1.Container{
 			{
-				Name:            "set-permissions",
-				Image:           containerImage,
-				ImagePullPolicy: v1.PullIfNotPresent,
+				Name:  "set-permissions",
+				Image: containerImage,
 				Command: []string{
 					"sh",
 					"-c",
 					"cp /tls/* /writable-tls/ && chmod 0600 /writable-tls/*",
 				},
+				ImagePullPolicy:          v1.PullIfNotPresent,
 				TerminationMessagePath:   v1.TerminationMessagePathDefault,
 				TerminationMessagePolicy: v1.TerminationMessageReadFile,
 				VolumeMounts: []v1.VolumeMount{
@@ -685,14 +660,14 @@ func (zync *Zync) zyncInit(containerImage string) []v1.Container {
 				},
 			},
 			{
-				Name:            ZyncInitContainerName,
-				Image:           containerImage,
-				ImagePullPolicy: v1.PullIfNotPresent,
+				Name:  ZyncInitContainerName,
+				Image: containerImage,
 				Command: []string{
 					"bash",
 					"-c",
 					"bundle exec sh -c \"until rake boot:db; do sleep $SLEEP_SECONDS; done\"",
 				},
+				ImagePullPolicy:          v1.PullIfNotPresent,
 				TerminationMessagePath:   v1.TerminationMessagePathDefault,
 				TerminationMessagePolicy: v1.TerminationMessageReadFile,
 				Env: []v1.EnvVar{
@@ -729,14 +704,14 @@ func (zync *Zync) zyncInit(containerImage string) []v1.Container {
 	} else {
 		return []v1.Container{
 			{
-				Name:            ZyncInitContainerName,
-				Image:           containerImage,
-				ImagePullPolicy: v1.PullIfNotPresent,
+				Name:  ZyncInitContainerName,
+				Image: containerImage,
 				Command: []string{
 					"bash",
 					"-c",
 					"bundle exec sh -c \"until rake boot:db; do sleep $SLEEP_SECONDS; done\"",
 				},
+				ImagePullPolicy:          v1.PullIfNotPresent,
 				TerminationMessagePath:   v1.TerminationMessagePathDefault,
 				TerminationMessagePolicy: v1.TerminationMessageReadFile,
 				Env: []v1.EnvVar{
@@ -825,6 +800,9 @@ func (zync *Zync) zyncQueInit(containerImage string) []v1.Container {
 					"-c",
 					"cp /tls/* /writable-tls/ && chmod 0600 /writable-tls/*",
 				},
+				ImagePullPolicy:          v1.PullIfNotPresent,
+				TerminationMessagePath:   v1.TerminationMessagePathDefault,
+				TerminationMessagePolicy: v1.TerminationMessageReadFile,
 				VolumeMounts: []v1.VolumeMount{
 					{
 						Name:      "tls-secret",

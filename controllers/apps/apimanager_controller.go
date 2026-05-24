@@ -160,7 +160,7 @@ func (r *APIManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return res, nil
 	}
 
-	specResult, specErr := r.reconcileAPIManagerLogic(r.WithRequest(req), instance)
+	specResult, specErr := r.reconcileAPIManagerLogic(r.BaseReconciler, instance)
 	statusResult, statusErr := r.reconcileAPIManagerStatus(instance, preflightChecksError)
 	if statusErr != nil {
 		return ctrl.Result{}, statusErr

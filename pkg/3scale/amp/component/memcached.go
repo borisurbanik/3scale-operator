@@ -7,7 +7,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -48,20 +47,14 @@ func (m *Memcached) Deployment(containerImage string) *k8sappsv1.Deployment {
 					Annotations: m.Options.PodTemplateAnnotations,
 				},
 				Spec: v1.PodSpec{
-					Affinity:                      m.Options.Affinity,
-					Tolerations:                   m.Options.Tolerations,
-					ServiceAccountName:            "amp", // TODO make this configurable via flag
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
+					Affinity:           m.Options.Affinity,
+					Tolerations:        m.Options.Tolerations,
+					ServiceAccountName: "amp", // TODO make this configurable via flag
 					Containers: []v1.Container{
 						{
-							Name:            "memcache",
-							Image:           containerImage,
-							ImagePullPolicy: v1.PullIfNotPresent,
-							Command:         []string{"memcached", "-m", "64"},
+							Name:    "memcache",
+							Image:   containerImage,
+							Command: []string{"memcached", "-m", "64"},
 							Ports: []v1.ContainerPort{
 								{
 									HostPort:      0,
@@ -69,9 +62,7 @@ func (m *Memcached) Deployment(containerImage string) *k8sappsv1.Deployment {
 									Protocol:      v1.ProtocolTCP,
 								},
 							},
-							Resources:                m.Options.ResourceRequirements,
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Resources: m.Options.ResourceRequirements,
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -82,10 +73,10 @@ func (m *Memcached) Deployment(containerImage string) *k8sappsv1.Deployment {
 									},
 								},
 								InitialDelaySeconds: 10,
-								TimeoutSeconds:      1,
+								TimeoutSeconds:      0,
 								PeriodSeconds:       10,
-								SuccessThreshold:    1,
-								FailureThreshold:    3,
+								SuccessThreshold:    0,
+								FailureThreshold:    0,
 							},
 							ReadinessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
@@ -99,9 +90,10 @@ func (m *Memcached) Deployment(containerImage string) *k8sappsv1.Deployment {
 								InitialDelaySeconds: 10,
 								TimeoutSeconds:      5,
 								PeriodSeconds:       30,
-								SuccessThreshold:    1,
-								FailureThreshold:    3,
+								SuccessThreshold:    0,
+								FailureThreshold:    0,
 							},
+							ImagePullPolicy: v1.PullIfNotPresent,
 						},
 					},
 					PriorityClassName:         m.Options.PriorityClassName,

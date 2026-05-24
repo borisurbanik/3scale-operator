@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -84,24 +83,17 @@ func (s *SystemSearchd) Deployment(ctx context.Context, k8sclient client.Client,
 					Annotations: s.searchdPodAnnotations(watchedSecretAnnotations),
 				},
 				Spec: v1.PodSpec{
-					InitContainers:                s.searchdInit(containerImage),
-					Affinity:                      s.Options.Affinity,
-					Tolerations:                   s.Options.Tolerations,
-					ServiceAccountName:            "amp",
-					RestartPolicy:                 v1.RestartPolicyAlways,
-					DNSPolicy:                     v1.DNSClusterFirst,
-					SecurityContext:               &v1.PodSecurityContext{},
-					TerminationGracePeriodSeconds: ptr.To(int64(v1.DefaultTerminationGracePeriodSeconds)),
-					SchedulerName:                 v1.DefaultSchedulerName,
-					Volumes:                       s.searchdVolume(),
+					InitContainers:     s.searchdInit(containerImage),
+					Affinity:           s.Options.Affinity,
+					Tolerations:        s.Options.Tolerations,
+					ServiceAccountName: "amp",
+					Volumes:            s.searchdVolume(),
 					Containers: []v1.Container{
 						{
-							Name:                     SystemSearchdDeploymentName,
-							Image:                    containerImage,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							VolumeMounts:             s.searchDVolumeMounts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:            SystemSearchdDeploymentName,
+							Image:           containerImage,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							VolumeMounts:    s.searchDVolumeMounts(),
 							LivenessProbe: &v1.Probe{
 								ProbeHandler: v1.ProbeHandler{
 									TCPSocket: &v1.TCPSocketAction{
@@ -183,15 +175,13 @@ func (s *SystemSearchd) ReindexingJob(containerImage string, system *System) *ba
 					InitContainers: s.searchdInit(containerImage),
 					Containers: []v1.Container{
 						{
-							Name:                     SystemSearchdReindexJobName,
-							Image:                    containerImage,
-							Args:                     []string{"bash", "-c", "bundle exec rake searchd:optimal_index"},
-							Env:                      system.buildSystemBaseEnv(),
-							Resources:                s.Options.ContainerResourceRequirements,
-							ImagePullPolicy:          v1.PullIfNotPresent,
-							VolumeMounts:             s.searchdManticoreVolumeMounts(),
-							TerminationMessagePath:   v1.TerminationMessagePathDefault,
-							TerminationMessagePolicy: v1.TerminationMessageReadFile,
+							Name:            SystemSearchdReindexJobName,
+							Image:           containerImage,
+							Args:            []string{"bash", "-c", "bundle exec rake searchd:optimal_index"},
+							Env:             system.buildSystemBaseEnv(),
+							Resources:       s.Options.ContainerResourceRequirements,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							VolumeMounts:    s.searchdManticoreVolumeMounts(),
 						},
 					},
 					Volumes:            s.searchdJobVolume(),
