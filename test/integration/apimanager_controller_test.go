@@ -212,12 +212,12 @@ var _ = Describe("APIManager controller", func() {
 			fmt.Fprintf(GinkgoWriter, "APIManager 'Available' condition is true\n")
 
 			// Verify no perpetual reconciliation occurred during initial deployment.
-			verifyNoDeploymentUpdates(apimanager.Namespace, apimanager.Name, 0, GinkgoWriter)
+			verifyNoDeploymentUpdates(0, GinkgoWriter)
 
 			// Trigger a synthetic change and confirm the operator corrects it exactly once.
 			triggerSyntheticDeploymentUpdate(testNamespace, GinkgoWriter)
 			time.Sleep(settlingPeriod)
-			verifyNoDeploymentUpdates(apimanager.Namespace, apimanager.Name, 1, GinkgoWriter)
+			verifyNoDeploymentUpdates(1, GinkgoWriter)
 
 			elapsed := time.Since(start)
 			fmt.Fprintf(GinkgoWriter, "APIManager creation and availability took '%s'\n", elapsed)

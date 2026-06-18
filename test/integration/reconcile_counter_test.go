@@ -14,34 +14,21 @@ import (
 // mu protects updateCounts; deploymentNames is read-only after construction.
 type counterState struct {
 	deploymentNames map[string]bool
-	// updateCounts is keyed by "namespace/name" (the APIManager CR instance),
-	// then by deployment name. This allows parallel specs targeting different
-	// CR instances to accumulate counts independently.
-	updateCounts map[string]map[string]int
-	mu           sync.Mutex
+	updateCounts    map[string]int
+	mu              sync.Mutex
 }
 
-// ReconcileCounter wraps a zapcore.Core to count deployment update events per
-// APIManager CR instance. It overrides With and Check so the counter survives
-// logger.WithName/WithValues chains, and captures the "namespace" and "name"
-// fields that controller-runtime adds to the reconciler logger context.
+// ReconcileCounter wraps a zapcore.Core to count Deployment update log entries
+// for a fixed set of monitored deployment names. Counts are global (not keyed
+// by CR instance), so Reset must be called between measurement windows.
 type ReconcileCounter struct {
 	zapcore.Core
-	state     *counterState
-	namespace string // captured from With() chain
-	crName    string // captured from With() chain
-}
-
-func (rc *ReconcileCounter) crKey() string {
-	if rc.namespace == "" || rc.crName == "" {
-		return ""
-	}
-	return rc.namespace + "/" + rc.crName
+	state *counterState
 }
 
 // NewReconcileCounter creates a new ReconcileCounter wrapping the given core.
 func NewReconcileCounter(core zapcore.Core, deploymentNames []string) *ReconcileCounter {
-	nameMap := make(map[string]bool)
+	nameMap := make(map[string]bool, len(deploymentNames))
 	for _, name := range deploymentNames {
 		nameMap[name] = true
 	}
@@ -49,37 +36,21 @@ func NewReconcileCounter(core zapcore.Core, deploymentNames []string) *Reconcile
 		Core: core,
 		state: &counterState{
 			deploymentNames: nameMap,
-			updateCounts:    make(map[string]map[string]int),
+			updateCounts:    make(map[string]int),
 		},
 	}
 }
 
 // With returns a new ReconcileCounter wrapping the inner core-with-fields,
-// sharing the same counter state. It captures "namespace" and "name" fields
-// so Write can key counts by CR instance.
+// sharing the same counter state.
 func (rc *ReconcileCounter) With(fields []zapcore.Field) zapcore.Core {
-	ns := rc.namespace
-	name := rc.crName
-	for _, f := range fields {
-		if f.Type == zapcore.StringType {
-			switch f.Key {
-			case "namespace":
-				ns = f.String
-			case "name":
-				name = f.String
-			}
-		}
-	}
 	return &ReconcileCounter{
-		Core:      rc.Core.With(fields),
-		state:     rc.state,
-		namespace: ns,
-		crName:    name,
+		Core:  rc.Core.With(fields),
+		state: rc.state,
 	}
 }
 
-// Check ensures rc.Write is called (not the inner core's Write) for entries
-// that pass the level check.
+// Check ensures rc.Write is called (not the inner core's Write) for enabled entries.
 func (rc *ReconcileCounter) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	if rc.Core.Enabled(entry.Level) {
 		return ce.AddCore(entry, rc)
@@ -87,42 +58,16 @@ func (rc *ReconcileCounter) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry)
 	return ce
 }
 
-// Write intercepts log entries and counts deployment updates keyed by CR instance.
-// The key is resolved in priority order:
-//  1. With() chain (context logger): controller-runtime injects "namespace"/"name" before Reconcile.
-//  2. Explicit fields on the log entry: UpdateResource logs obj.GetNamespace() as "namespace" and
-//     the APIManager owner reference name as "name".
+// Write intercepts "Updated object 'v1.Deployment/<name>'" log entries and
+// increments the per-deployment counter.
 func (rc *ReconcileCounter) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	if !strings.Contains(entry.Message, "Updated object 'v1.Deployment/") {
-		return rc.Core.Write(entry, fields)
-	}
-	parts := strings.Split(entry.Message, "v1.Deployment/")
-	if len(parts) == 2 {
-		deploymentName := strings.TrimSuffix(parts[1], "'")
-		if rc.state.deploymentNames[deploymentName] {
-			key := rc.crKey()
-			if key == "" {
-				var ns, name string
-				for _, f := range fields {
-					if f.Type == zapcore.StringType {
-						switch f.Key {
-						case "namespace":
-							ns = f.String
-						case "name":
-							name = f.String
-						}
-					}
-				}
-				if ns != "" && name != "" {
-					key = ns + "/" + name
-				}
-			}
-			if key != "" {
+	if strings.Contains(entry.Message, "Updated object 'v1.Deployment/") {
+		parts := strings.Split(entry.Message, "v1.Deployment/")
+		if len(parts) == 2 {
+			deploymentName := strings.TrimSuffix(parts[1], "'")
+			if rc.state.deploymentNames[deploymentName] {
 				rc.state.mu.Lock()
-				if rc.state.updateCounts[key] == nil {
-					rc.state.updateCounts[key] = make(map[string]int)
-				}
-				rc.state.updateCounts[key][deploymentName]++
+				rc.state.updateCounts[deploymentName]++
 				rc.state.mu.Unlock()
 			}
 		}
@@ -130,42 +75,45 @@ func (rc *ReconcileCounter) Write(entry zapcore.Entry, fields []zapcore.Field) e
 	return rc.Core.Write(entry, fields)
 }
 
-// GetUpdateCounts returns a copy of per-deployment counts for the given CR instance.
-func (rc *ReconcileCounter) GetUpdateCounts(namespace, name string) map[string]int {
-	key := namespace + "/" + name
+// Reset clears all accumulated counts. Call before each measurement window.
+func (rc *ReconcileCounter) Reset() {
 	rc.state.mu.Lock()
 	defer rc.state.mu.Unlock()
-	counts := make(map[string]int)
-	for k, v := range rc.state.updateCounts[key] {
+	rc.state.updateCounts = make(map[string]int)
+}
+
+// GetUpdateCounts returns a copy of the per-deployment update counts.
+func (rc *ReconcileCounter) GetUpdateCounts() map[string]int {
+	rc.state.mu.Lock()
+	defer rc.state.mu.Unlock()
+	counts := make(map[string]int, len(rc.state.updateCounts))
+	for k, v := range rc.state.updateCounts {
 		counts[k] = v
 	}
 	return counts
 }
 
-// GetTotalUpdates returns the total deployment update count for the given CR instance.
-func (rc *ReconcileCounter) GetTotalUpdates(namespace, name string) int {
-	key := namespace + "/" + name
+// GetTotalUpdates returns the total number of deployment updates recorded.
+func (rc *ReconcileCounter) GetTotalUpdates() int {
 	rc.state.mu.Lock()
 	defer rc.state.mu.Unlock()
 	total := 0
-	for _, count := range rc.state.updateCounts[key] {
-		total += count
+	for _, v := range rc.state.updateCounts {
+		total += v
 	}
 	return total
 }
 
-// GetReport returns a formatted breakdown for the given CR instance.
-func (rc *ReconcileCounter) GetReport(namespace, name string) string {
-	key := namespace + "/" + name
+// GetReport returns a human-readable breakdown of all recorded updates.
+func (rc *ReconcileCounter) GetReport() string {
 	rc.state.mu.Lock()
 	defer rc.state.mu.Unlock()
-	counts := rc.state.updateCounts[key]
-	if len(counts) == 0 {
-		return fmt.Sprintf("No deployment updates detected for %s", key)
+	if len(rc.state.updateCounts) == 0 {
+		return "No deployment updates detected"
 	}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Deployment update counts for %s:\n", key)
-	for depName, count := range counts {
+	fmt.Fprintf(&sb, "Deployment update counts:\n")
+	for depName, count := range rc.state.updateCounts {
 		fmt.Fprintf(&sb, "  %s: %d updates\n", depName, count)
 	}
 	return sb.String()
