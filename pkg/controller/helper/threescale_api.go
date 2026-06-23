@@ -53,6 +53,32 @@ func PortaClientFromURL(url *url.URL, token string, insecureSkipVerify bool) (*t
 	return threescaleapi.NewThreeScale(adminPortal, token, &http.Client{Transport: transport}), nil
 }
 
+// PortaClientFromURLWithTLSConfig instantiates porta_client.ThreeScaleClient from admin url object
+// with an optional *tls.Config. When tlsConfig is non-nil it is used directly as the transport's
+// TLS configuration and insecureSkipVerify is ignored. When tlsConfig is nil the function behaves
+// identically to PortaClientFromURL.
+func PortaClientFromURLWithTLSConfig(url *url.URL, token string, tlsConfig *tls.Config, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	if tlsConfig == nil {
+		return PortaClientFromURL(url, token, insecureSkipVerify)
+	}
+
+	adminPortal, err := threescaleapi.NewAdminPortal(url.Scheme, url.Hostname(), helper.PortFromURL(url))
+	if err != nil {
+		return nil, err
+	}
+
+	var transport http.RoundTripper = &http.Transport{
+		Proxy:           http.ProxyFromEnvironment,
+		TLSClientConfig: tlsConfig,
+	}
+
+	if helper.GetEnvVar(HTTP_VERBOSE_ENVVAR, "0") == "1" {
+		transport = &helper.Transport{Transport: transport}
+	}
+
+	return threescaleapi.NewThreeScale(adminPortal, token, &http.Client{Transport: transport}), nil
+}
+
 // GetInsecureSkipVerifyAnnotation extracts the insecure_skip_verify annotation from an object
 func GetInsecureSkipVerifyAnnotation(annotations map[string]string) bool {
 	insecureSkipVerify, ok := annotations["insecure_skip_verify"]
