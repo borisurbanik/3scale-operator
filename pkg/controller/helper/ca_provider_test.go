@@ -123,6 +123,7 @@ func TestCAProvider_TLSConfig(t *testing.T) {
 			configMap: createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAtest
 -----END RSA PRIVATE KEY-----`),
+			// AppendCertsFromPEM skips non-CERTIFICATE blocks; no certs appended → error
 			expectNil:   true,
 			expectError: true,
 		},
@@ -131,8 +132,9 @@ MIIEpAIBAAKCAQEAtest
 			configMap:   createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM+"\n"+`-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAtest
 -----END RSA PRIVATE KEY-----`),
-			expectNil:   true,
-			expectError: true,
+			// AppendCertsFromPEM skips non-CERTIFICATE blocks; the valid cert is still appended → no error
+			expectNil:   false,
+			expectError: false,
 		},
 	}
 

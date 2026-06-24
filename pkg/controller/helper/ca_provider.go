@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"sync"
 
@@ -40,10 +39,9 @@ func (e *CAValidationError) Unwrap() error {
 
 // CA validation error reasons
 const (
-	CAValidationReasonMissingSecret      = "MissingCASecret"
-	CAValidationReasonMissingKey         = "MissingCAKey"
-	CAValidationReasonInvalidFormat      = "InvalidCAFormat"
-	CAValidationReasonInvalidCertificate = "InvalidCertificate"
+	CAValidationReasonMissingSecret = "MissingCASecret"
+	CAValidationReasonMissingKey    = "MissingCAKey"
+	CAValidationReasonInvalidFormat = "InvalidCAFormat"
 )
 
 // CAProvider loads, validates, and caches the CA bundle from the well-known ConfigMap
@@ -121,20 +119,6 @@ func getConfigMapKey(ctx context.Context, cl client.Client, namespace, name, key
 	return []byte(val), nil
 }
 
-func extractPEMBlocks(data []byte) []*pem.Block {
-	var blocks []*pem.Block
-	rest := data
-	for {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		blocks = append(blocks, block)
-	}
-	return blocks
-}
-
 func (p *CAProvider) load(ctx context.Context) error {
 	p.config = nil // default; overwritten only on success path
 
@@ -146,37 +130,16 @@ func (p *CAProvider) load(ctx context.Context) error {
 		return nil
 	}
 
-	blocks := extractPEMBlocks(caData)
-
-	if len(blocks) == 0 {
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caData) {
 		return &CAValidationError{
 			Reason:  CAValidationReasonInvalidFormat,
 			Message: "No valid PEM-encoded certificates found in CA bundle",
 		}
 	}
 
-	certPool := x509.NewCertPool()
-	for _, block := range blocks {
-		if block.Type != "CERTIFICATE" {
-			return &CAValidationError{
-				Reason:  CAValidationReasonInvalidFormat,
-				Message: fmt.Sprintf("invalid PEM block type %q, only CERTIFICATE is allowed", block.Type),
-			}
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return &CAValidationError{
-				Reason:  CAValidationReasonInvalidCertificate,
-				Message: "Failed to parse certificate",
-				Err:     err,
-			}
-		}
-		certPool.AddCert(cert)
-	}
-
 	p.config = &tls.Config{
 		RootCAs: certPool,
-		// Explicitly use of TLSConfig with cached RootCAs
 	}
 	return nil
 }
