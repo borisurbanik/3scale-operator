@@ -39,6 +39,7 @@ import (
 // ProductReconciler reconciles a Product object
 type ProductReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 const productFinalizer = "product.capabilities.3scale.net/finalizer"
@@ -205,8 +206,13 @@ func (r *ProductReconciler) reconcile(productResource *capabilitiesv1beta1.Produ
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewProductStatusReconciler(r.BaseReconciler, productResource, nil, providerAccount.AdminURLStr, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(productResource.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewProductStatusReconciler(r.BaseReconciler, productResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -399,8 +405,12 @@ func (r *ProductReconciler) removeProductFrom3scale(product *capabilitiesv1beta1
 		return err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(product.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

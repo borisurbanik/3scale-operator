@@ -39,6 +39,7 @@ import (
 // ProxyConfigPromoteReconciler reconciles a ProxyConfigPromote object
 type ProxyConfigPromoteReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // +kubebuilder:rbac:groups=capabilities.3scale.net,resources=proxyconfigpromotes,verbs=get;list;watch;create;update;patch;delete
@@ -98,8 +99,12 @@ func (r *ProxyConfigPromoteReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// connect to the 3scale porta client
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(proxyConfigPromote.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

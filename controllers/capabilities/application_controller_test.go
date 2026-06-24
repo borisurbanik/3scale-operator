@@ -9,6 +9,7 @@ import (
 	capabilitiesv1beta1 "github.com/3scale/3scale-operator/apis/capabilities/v1beta1"
 	"github.com/3scale/3scale-operator/controllers/capabilities/mocks"
 	"github.com/3scale/3scale-operator/pkg/apispkg/common"
+	controllerhelper "github.com/3scale/3scale-operator/pkg/controller/helper"
 	"github.com/3scale/3scale-operator/pkg/reconcilers"
 	"github.com/3scale/3scale-porta-go-client/client"
 	v1 "github.com/openshift/api/config/v1"
@@ -107,7 +108,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			product: []*capabilitiesv1beta1.Product{getProductCR()},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				// No error is returned
 				require.Error(t, err)
@@ -150,7 +151,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -216,7 +217,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 				}}),
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				require.NoError(t, err)
 
@@ -259,7 +260,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				// No error is returned
 				require.NoError(t, err)
@@ -307,7 +308,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -367,7 +368,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -452,7 +453,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r, CAProvider: controllerhelper.NewCAProvider(r.Client(), "test")}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 

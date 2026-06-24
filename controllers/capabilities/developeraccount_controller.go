@@ -48,6 +48,7 @@ const (
 // DeveloperAccountReconciler reconciles a DeveloperAccount object
 type DeveloperAccountReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // blank assignment to verify that DeveloperAccountReconciler implements reconcile.Reconciler
@@ -219,8 +220,13 @@ func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(accountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -271,8 +277,12 @@ func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerA
 		return err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerAccountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(developerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(developerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

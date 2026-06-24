@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -63,6 +64,7 @@ const (
 // TenantReconciler reconciles a Tenant object
 type TenantReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // blank assignment to verify that TenantReconciler implements reconcile.Reconciler
@@ -237,8 +239,18 @@ func (r *TenantReconciler) setupPortaClient(tenantCR *capabilitiesv1alpha1.Tenan
 		return nil, err
 	}
 
+	adminURL, err := url.Parse(tenantCR.Spec.SystemMasterUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(tenantCR.GetAnnotations())
-	portaClient, err := controllerhelper.PortaClientFromURLString(tenantCR.Spec.SystemMasterUrl, masterAccessToken, insecureSkipVerify)
+	portaClient, err := controllerhelper.PortaClientFromURLWithTLSConfig(adminURL, masterAccessToken, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}

@@ -37,6 +37,7 @@ import (
 // CustomPolicyDefinitionReconciler reconciles a CustomPolicyDefinition object
 type CustomPolicyDefinitionReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // blank assignment to verify that PolicyReconciler implements reconcile.Reconciler
@@ -115,8 +116,13 @@ func (r *CustomPolicyDefinitionReconciler) reconcileSpec(customPolicyDefinitionC
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewCustomPolicyDefinitionStatusReconciler(r.BaseReconciler, customPolicyDefinitionCR, providerAccount.AdminURLStr, nil, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(customPolicyDefinitionCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewCustomPolicyDefinitionStatusReconciler(r.BaseReconciler, customPolicyDefinitionCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err

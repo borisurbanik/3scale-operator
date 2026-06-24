@@ -24,6 +24,18 @@ func PortaClient(providerAccount *ProviderAccount, insecureSkipVerify bool) (*th
 	return PortaClientFromURLString(providerAccount.AdminURLStr, providerAccount.Token, insecureSkipVerify)
 }
 
+// PortaClientWithTLSConfig instantiates porta_client.ThreeScaleClient from a ProviderAccount
+// with an optional *tls.Config. When tlsConfig is non-nil it is used directly as the transport's
+// TLS configuration and insecureSkipVerify is ignored. When tlsConfig is nil the function behaves
+// identically to PortaClient.
+func PortaClientWithTLSConfig(providerAccount *ProviderAccount, tlsConfig *tls.Config, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	adminURL, err := url.Parse(providerAccount.AdminURLStr)
+	if err != nil {
+		return nil, err
+	}
+	return PortaClientFromURLWithTLSConfig(adminURL, providerAccount.Token, tlsConfig, insecureSkipVerify)
+}
+
 // PortaClientFromURLString instantiates porta_client.ThreeScaleClient from url string
 func PortaClientFromURLString(adminURLStr, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
 	adminURL, err := url.Parse(adminURLStr)

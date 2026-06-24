@@ -38,6 +38,7 @@ import (
 // ActiveDocReconciler reconciles a ActiveDoc object
 type ActiveDocReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // blank assignment to verify that BackendReconciler implements reconcile.Reconciler
@@ -144,8 +145,13 @@ func (r *ActiveDocReconciler) reconcileSpec(activeDocCR *capabilitiesv1beta1.Act
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewActiveDocStatusReconciler(r.BaseReconciler, activeDocCR, providerAccount.AdminURLStr, nil, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(activeDocCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewActiveDocStatusReconciler(r.BaseReconciler, activeDocCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err

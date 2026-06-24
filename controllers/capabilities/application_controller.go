@@ -41,6 +41,7 @@ import (
 // ApplicationReconciler reconciles a Application object
 type ApplicationReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 const (
@@ -142,8 +143,12 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -305,8 +310,12 @@ func (r *ApplicationReconciler) removeApplicationFrom3scale(application *capabil
 		return err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

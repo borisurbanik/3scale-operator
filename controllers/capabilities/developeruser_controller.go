@@ -52,6 +52,7 @@ const (
 // DeveloperUserReconciler reconciles a DeveloperUser object
 type DeveloperUserReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 // blank assignment to verify that DeveloperUserReconciler implements reconcile.Reconciler
@@ -235,8 +236,13 @@ func (r *DeveloperUserReconciler) reconcileSpec(userCR *capabilitiesv1beta1.Deve
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewDeveloperUserStatusReconciler(r.BaseReconciler, userCR, parentAccountCR, providerAccount.AdminURLStr, nil, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(userCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperUserStatusReconciler(r.BaseReconciler, userCR, parentAccountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -332,8 +338,12 @@ func (r *DeveloperUserReconciler) removeDeveloperUserFrom3scale(developerUser *c
 		return err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerUser.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

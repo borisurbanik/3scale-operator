@@ -41,6 +41,7 @@ import (
 // BackendReconciler reconciles a Backend object
 type BackendReconciler struct {
 	*reconcilers.BaseReconciler
+	CAProvider *controllerhelper.CAProvider
 }
 
 const requeueTime = time.Duration(2) * time.Second
@@ -206,8 +207,13 @@ func (r *BackendReconciler) reconcile(backendResource *capabilitiesv1beta1.Backe
 		return statusReconciler, err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		statusReconciler := NewBackendStatusReconciler(r.BaseReconciler, backendResource, nil, providerAccount.AdminURLStr, err)
+		return statusReconciler, err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(backendResource.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewBackendStatusReconciler(r.BaseReconciler, backendResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -298,8 +304,12 @@ func (r *BackendReconciler) removeBackendFrom3scale(backend *capabilitiesv1beta1
 		return err
 	}
 
+	tlsConfig, err := r.CAProvider.TLSConfig()
+	if err != nil {
+		return err
+	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(backend.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
 	if err != nil {
 		return err
 	}
