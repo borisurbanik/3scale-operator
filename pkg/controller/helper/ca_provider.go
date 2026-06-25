@@ -13,13 +13,12 @@ import (
 )
 
 const (
-	// CABundleConfigMapName is the well-known ConfigMap name for the CA bundle
 	CABundleConfigMapName = "threescale-ca-bundle"
-	// CABundleConfigMapKey is the well-known key in the ConfigMap containing the CA bundle
-	CABundleConfigMapKey = "ca-bundle.crt"
+	CABundleConfigMapKey  = "ca-bundle.crt"
 )
 
-// CAValidationError represents errors that occur during CA validation
+// CAValidationError is returned when the CA bundle ConfigMap exists but its
+// contents cannot be used to build a valid certificate pool.
 type CAValidationError struct {
 	Reason  string
 	Message string
@@ -37,24 +36,24 @@ func (e *CAValidationError) Unwrap() error {
 	return e.Err
 }
 
-// CA validation error reasons
 const (
 	CAValidationReasonMissingSecret = "MissingCASecret"
 	CAValidationReasonMissingKey    = "MissingCAKey"
 	CAValidationReasonInvalidFormat = "InvalidCAFormat"
 )
 
-// CAProvider loads, validates, and caches the CA bundle from the well-known ConfigMap
+// CAProvider makes the operator's outbound TLS trust the CA bundle supplied by the
+// platform team at runtime. The cache is keyed by ConfigMap ResourceVersion so that
+// bundle rotations are picked up on the next reconcile without an operator restart.
 type CAProvider struct {
-	client    client.Client
-	namespace string
-	mu        sync.RWMutex
-	config    *tls.Config
-	err       error
-	loaded    bool
+	client              client.Client
+	namespace           string
+	mu                  sync.RWMutex
+	config              *tls.Config
+	cachedErr           error
+	lastResourceVersion string
 }
 
-// NewCAProvider constructs a new CAProvider
 func NewCAProvider(cl client.Client, namespace string) *CAProvider {
 	return &CAProvider{
 		client:    cl,
@@ -62,76 +61,105 @@ func NewCAProvider(cl client.Client, namespace string) *CAProvider {
 	}
 }
 
-// TLSConfig returns the cached tls.Config
-func (p *CAProvider) TLSConfig() (*tls.Config, error) {
-	p.mu.RLock()
-	if p.loaded {
-		config, err := p.config, p.err
+// TLSConfig returns a tls.Config that trusts the operator CA bundle, or nil if
+// no bundle is configured. Safe for concurrent use. The PEM is only re-parsed
+// when the ConfigMap ResourceVersion changes, keeping reconcile hot paths cheap.
+func (p *CAProvider) TLSConfig(ctx context.Context) (*tls.Config, error) {
+	cm := &corev1.ConfigMap{}
+	err := p.client.Get(ctx, client.ObjectKey{Namespace: p.namespace, Name: CABundleConfigMapName}, cm)
+
+	var currentRV string
+	notFound := apierrors.IsNotFound(err)
+	if err != nil && !notFound {
+		// Prefer stale-but-valid config over surfacing a transient API error mid-reconcile.
+		p.mu.RLock()
+		config, cachedErr := p.config, p.cachedErr
 		p.mu.RUnlock()
-		return config, err
+		if p.lastResourceVersion != "" || config != nil || cachedErr != nil {
+			return config, cachedErr
+		}
+		return nil, err
+	}
+
+	if !notFound {
+		currentRV = cm.ResourceVersion
+	}
+
+	p.mu.RLock()
+	if p.lastResourceVersion == currentRV && (currentRV != "" || notFound) {
+		config, cachedErr := p.config, p.cachedErr
+		p.mu.RUnlock()
+		return config, cachedErr
 	}
 	p.mu.RUnlock()
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.loaded {
-		return p.config, p.err
+
+	// Another goroutine may have reloaded while we waited for the write lock.
+	if p.lastResourceVersion == currentRV && (currentRV != "" || notFound) {
+		return p.config, p.cachedErr
 	}
 
-	err := p.load(context.TODO())
-	p.loaded = true
-	p.err = err
-	return p.config, p.err
-}
-
-// Reload re-reads the ConfigMap and updates the cached state
-func (p *CAProvider) Reload(ctx context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	err := p.load(ctx)
-	p.loaded = true
-	p.err = err
-	return err
-}
-
-func getConfigMapKey(ctx context.Context, cl client.Client, namespace, name, key string) ([]byte, error) {
-	cm := &corev1.ConfigMap{}
-	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	val, exists := cm.Data[key]
-	if !exists {
+	if notFound {
+		p.config = nil
+		p.cachedErr = nil
+		p.lastResourceVersion = ""
 		return nil, nil
 	}
 
-	if len(val) == 0 {
-		return nil, &CAValidationError{
-			Reason:  CAValidationReasonInvalidFormat,
-			Message: fmt.Sprintf("Key %q in ConfigMap %s/%s is empty", key, namespace, name),
-		}
-	}
-
-	return []byte(val), nil
+	loadErr := p.loadFromConfigMap(cm)
+	p.cachedErr = loadErr
+	p.lastResourceVersion = currentRV
+	return p.config, p.cachedErr
 }
 
-func (p *CAProvider) load(ctx context.Context) error {
-	p.config = nil // default; overwritten only on success path
+// Reload forces a synchronous re-parse regardless of ResourceVersion. Use when
+// the caller needs a guarantee that the next TLSConfig returns fresh data (e.g.
+// after a failed reconcile that may have cached a transient error).
+func (p *CAProvider) Reload(ctx context.Context) error {
+	cm := &corev1.ConfigMap{}
+	err := p.client.Get(ctx, client.ObjectKey{Namespace: p.namespace, Name: CABundleConfigMapName}, cm)
 
-	caData, err := getConfigMapKey(ctx, p.client, p.namespace, CABundleConfigMapName, CABundleConfigMapKey)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if apierrors.IsNotFound(err) {
+		p.config = nil
+		p.cachedErr = nil
+		p.lastResourceVersion = ""
+		return nil
+	}
 	if err != nil {
+		p.cachedErr = err
+		p.lastResourceVersion = ""
 		return err
 	}
-	if caData == nil {
+
+	loadErr := p.loadFromConfigMap(cm)
+	p.cachedErr = loadErr
+	p.lastResourceVersion = cm.ResourceVersion
+	return loadErr
+}
+
+// loadFromConfigMap must be called with p.mu write-locked.
+func (p *CAProvider) loadFromConfigMap(cm *corev1.ConfigMap) error {
+	p.config = nil
+
+	val, exists := cm.Data[CABundleConfigMapKey]
+	if !exists {
 		return nil
 	}
 
+	if len(val) == 0 {
+		return &CAValidationError{
+			Reason:  CAValidationReasonInvalidFormat,
+			Message: fmt.Sprintf("Key %q in ConfigMap %s/%s is empty", CABundleConfigMapKey, cm.Namespace, cm.Name),
+		}
+	}
+
 	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(caData) {
+	if !certPool.AppendCertsFromPEM([]byte(val)) {
 		return &CAValidationError{
 			Reason:  CAValidationReasonInvalidFormat,
 			Message: "No valid PEM-encoded certificates found in CA bundle",

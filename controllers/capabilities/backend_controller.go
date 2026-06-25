@@ -95,7 +95,7 @@ func (r *BackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return res, nil
 		}
 
-		err = r.removeBackendFrom3scale(backend)
+		err = r.removeBackendFrom3scale(ctx, backend)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -161,7 +161,7 @@ func (r *BackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	statusReconciler, reconcileErr := r.reconcile(backend)
+	statusReconciler, reconcileErr := r.reconcile(ctx, backend)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -192,7 +192,7 @@ func (r *BackendReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *BackendReconciler) reconcile(backendResource *capabilitiesv1beta1.Backend) (*BackendStatusReconciler, error) {
+func (r *BackendReconciler) reconcile(ctx context.Context, backendResource *capabilitiesv1beta1.Backend) (*BackendStatusReconciler, error) {
 	logger := r.Logger().WithValues("backend", backendResource.Name)
 
 	err := r.validateSpec(backendResource)
@@ -207,7 +207,7 @@ func (r *BackendReconciler) reconcile(backendResource *capabilitiesv1beta1.Backe
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		statusReconciler := NewBackendStatusReconciler(r.BaseReconciler, backendResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -286,7 +286,7 @@ func (r *BackendReconciler) removeBackendReferencesFromProducts(backend *capabil
 	return ctrl.Result{}, nil
 }
 
-func (r *BackendReconciler) removeBackendFrom3scale(backend *capabilitiesv1beta1.Backend) error {
+func (r *BackendReconciler) removeBackendFrom3scale(ctx context.Context, backend *capabilitiesv1beta1.Backend) error {
 	logger := r.Logger().WithValues("backend", client.ObjectKey{Name: backend.Name, Namespace: backend.Namespace})
 
 	// Attempt to remove backend only if backend.Status.ID is present
@@ -304,7 +304,7 @@ func (r *BackendReconciler) removeBackendFrom3scale(backend *capabilitiesv1beta1
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		return err
 	}

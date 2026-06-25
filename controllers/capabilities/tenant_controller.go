@@ -103,7 +103,7 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Setup porta client
-	portaClient, err := r.setupPortaClient(tenantCR, reqLogger)
+	portaClient, err := r.setupPortaClient(ctx, tenantCR, reqLogger)
 	if err != nil {
 		_, statusReconcilerError := r.reconcileStatus(tenantCR, err)
 		if statusReconcilerError != nil {
@@ -232,7 +232,7 @@ func (r *TenantReconciler) fetchMasterCredentials(tenantR *capabilitiesv1alpha1.
 	return bytes.NewBuffer(masterAccessTokenByteArray).String(), nil
 }
 
-func (r *TenantReconciler) setupPortaClient(tenantCR *capabilitiesv1alpha1.Tenant, logger logr.Logger) (*threescaleapi.ThreeScaleClient, error) {
+func (r *TenantReconciler) setupPortaClient(ctx context.Context, tenantCR *capabilitiesv1alpha1.Tenant, logger logr.Logger) (*threescaleapi.ThreeScaleClient, error) {
 	masterAccessToken, err := r.fetchMasterCredentials(tenantCR)
 	if err != nil {
 		logger.Error(err, "Error fetching master credentials secret")
@@ -244,7 +244,7 @@ func (r *TenantReconciler) setupPortaClient(tenantCR *capabilitiesv1alpha1.Tenan
 		return nil, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -87,7 +87,7 @@ func (r *DeveloperAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// DeveloperAccount has been marked for deletion
 	if developerAccountCR.GetDeletionTimestamp() != nil && controllerutil.ContainsFinalizer(developerAccountCR, developerAccountFinalizer) {
-		err = r.removeDeveloperAccountFrom3scale(developerAccountCR)
+		err = r.removeDeveloperAccountFrom3scale(ctx, developerAccountCR)
 		if err != nil {
 			r.EventRecorder().Eventf(developerAccountCR, corev1.EventTypeWarning, "Failed to delete developer account", "%v", err)
 			return ctrl.Result{}, err
@@ -146,7 +146,7 @@ func (r *DeveloperAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	statusReconciler, reconcileErr := r.reconcileSpec(developerAccountCR, reqLogger)
+	statusReconciler, reconcileErr := r.reconcileSpec(ctx, developerAccountCR, reqLogger)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -207,7 +207,7 @@ func (r *DeveloperAccountReconciler) reconcileMetadata(devAccountCR *capabilitie
 	return changed
 }
 
-func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta1.DeveloperAccount, logger logr.Logger) (*DeveloperAccountStatusReconciler, error) {
+func (r *DeveloperAccountReconciler) reconcileSpec(ctx context.Context, accountCR *capabilitiesv1beta1.DeveloperAccount, logger logr.Logger) (*DeveloperAccountStatusReconciler, error) {
 	err := r.validateSpec(accountCR)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, "", nil, err)
@@ -220,7 +220,7 @@ func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -259,7 +259,7 @@ func (r *DeveloperAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerAccountCR *capabilitiesv1beta1.DeveloperAccount) error {
+func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(ctx context.Context, developerAccountCR *capabilitiesv1beta1.DeveloperAccount) error {
 	logger := r.Logger().WithValues("developeraccount", client.ObjectKey{Name: developerAccountCR.Name, Namespace: developerAccountCR.Namespace})
 
 	// Attempt to remove developer account only if developerAccountCR.Status.ID is present
@@ -277,7 +277,7 @@ func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerA
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		return err
 	}

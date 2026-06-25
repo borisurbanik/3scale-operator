@@ -166,8 +166,17 @@ func (r *ApplicationAuthReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// connect to the 3scale porta client
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
+		statusReconciler := NewApplicationAuthStatusReconciler(r.BaseReconciler, applicationAuth, err)
+		statusResult, statusErr := statusReconciler.Reconcile()
+		if statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
+		if statusResult.Requeue {
+			reqLogger.Info("Reconciling status not finished. Requeueing.")
+			return statusResult, nil
+		}
 		return ctrl.Result{}, err
 	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(applicationAuth.GetAnnotations())

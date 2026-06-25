@@ -148,7 +148,7 @@ MIIEpAIBAAKCAQEAtest
 			}
 
 			p := NewCAProvider(cl, testNamespace)
-			cfg, err := p.TLSConfig()
+			cfg, err := p.TLSConfig(context.TODO())
 
 			if tt.expectError {
 				if err == nil {
@@ -190,7 +190,7 @@ func TestCAProvider_Reload(t *testing.T) {
 	p := NewCAProvider(cl, testNamespace)
 
 	// First load
-	cfg, err := p.TLSConfig()
+	cfg, err := p.TLSConfig(context.TODO())
 	if err != nil || cfg == nil {
 		t.Fatalf("initial load failed: err=%v, cfg=%v", err, cfg)
 	}
@@ -205,7 +205,7 @@ func TestCAProvider_Reload(t *testing.T) {
 		t.Fatalf("reload failed: %v", err)
 	}
 
-	cfg2, err := p.TLSConfig()
+	cfg2, err := p.TLSConfig(context.TODO())
 	if err != nil || cfg2 == nil {
 		t.Fatalf("subsequent load failed: err=%v, cfg=%v", err, cfg2)
 	}
@@ -219,7 +219,7 @@ func TestCAProvider_Reload(t *testing.T) {
 		t.Fatalf("reload after delete failed: %v", err)
 	}
 
-	cfg3, err := p.TLSConfig()
+	cfg3, err := p.TLSConfig(context.TODO())
 	if err != nil {
 		t.Fatalf("TLSConfig after reload-delete failed: %v", err)
 	}
@@ -237,12 +237,68 @@ func TestCAProvider_Reload(t *testing.T) {
 		t.Fatal("expected reload to fail with invalid PEM")
 	}
 
-	cfg4, err := p.TLSConfig()
+	cfg4, err := p.TLSConfig(context.TODO())
 	if err == nil {
 		t.Fatal("expected TLSConfig to return error after failed reload")
 	}
 	if cfg4 != nil {
 		t.Fatal("expected tls.Config to be nil after failed reload")
+	}
+}
+
+// TestCAProvider_AutoReload verifies that a ConfigMap update is reflected on the
+// next TLSConfig call without requiring an explicit Reload.
+func TestCAProvider_AutoReload(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+
+	cm := createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM)
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(cm).Build()
+
+	p := NewCAProvider(cl, testNamespace)
+
+	cfg, err := p.TLSConfig(context.TODO())
+	if err != nil || cfg == nil {
+		t.Fatalf("initial TLSConfig failed: err=%v, cfg=%v", err, cfg)
+	}
+
+	cm.Data[CABundleConfigMapKey] = "invalid-pem"
+	if err := cl.Update(context.TODO(), cm); err != nil {
+		t.Fatalf("failed to update configmap: %v", err)
+	}
+
+	cfg2, err := p.TLSConfig(context.TODO())
+	if err == nil {
+		t.Fatal("expected CAValidationError after ConfigMap update to invalid PEM, got nil")
+	}
+	if cfg2 != nil {
+		t.Fatalf("expected nil tls.Config on error, got %v", cfg2)
+	}
+}
+
+// TestCAProvider_CacheHit verifies that the CA bundle is not re-parsed on every
+// call — repeated calls without a ConfigMap change must return the same object.
+func TestCAProvider_CacheHit(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+
+	cm := createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM)
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(cm).Build()
+
+	p := NewCAProvider(cl, testNamespace)
+
+	cfg1, err := p.TLSConfig(context.TODO())
+	if err != nil || cfg1 == nil {
+		t.Fatalf("first TLSConfig failed: err=%v, cfg=%v", err, cfg1)
+	}
+
+	cfg2, err := p.TLSConfig(context.TODO())
+	if err != nil || cfg2 == nil {
+		t.Fatalf("second TLSConfig failed: err=%v, cfg=%v", err, cfg2)
+	}
+
+	if cfg1 != cfg2 {
+		t.Fatal("expected the same *tls.Config pointer on cache hit, got different pointers")
 	}
 }
 
@@ -258,7 +314,6 @@ func TestCAProvider_Concurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	stopCh := make(chan struct{})
 
-	// Spin up multiple reader goroutines
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
@@ -268,12 +323,10 @@ func TestCAProvider_Concurrency(t *testing.T) {
 				case <-stopCh:
 					return
 				default:
-					cfg, err := p.TLSConfig()
-					// We shouldn't get data races, and they should be consistent
+					cfg, err := p.TLSConfig(context.TODO())
 					if err != nil {
 						t.Errorf("concurrent read error: %v", err)
 					}
-					// Under normal circumstances, it's either validCAPEM or validCA2PEM depending on when reload is called
 					if cfg != nil && cfg.RootCAs == nil {
 						t.Error("concurrent read returned non-nil config with nil RootCAs")
 					}
@@ -282,7 +335,7 @@ func TestCAProvider_Concurrency(t *testing.T) {
 		}()
 	}
 
-	// Spin up a reloader goroutine
+	// Concurrent writes exercise the cache invalidation path under load.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -302,7 +355,6 @@ func TestCAProvider_Concurrency(t *testing.T) {
 
 				cm.Data[CABundleConfigMapKey] = pemStr
 				_ = cl.Update(context.TODO(), cm)
-				_ = p.Reload(context.TODO())
 				time.Sleep(1 * time.Millisecond)
 			}
 		}
@@ -313,4 +365,3 @@ func TestCAProvider_Concurrency(t *testing.T) {
 	close(stopCh)
 	wg.Wait()
 }
-

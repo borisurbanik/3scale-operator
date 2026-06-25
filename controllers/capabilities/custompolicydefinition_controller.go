@@ -79,7 +79,7 @@ func (r *CustomPolicyDefinitionReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, nil
 	}
 
-	statusReconciler, reconcileErr := r.reconcileSpec(customPolicyDefinitionCR, reqLogger)
+	statusReconciler, reconcileErr := r.reconcileSpec(ctx, customPolicyDefinitionCR, reqLogger)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -109,14 +109,14 @@ func (r *CustomPolicyDefinitionReconciler) Reconcile(ctx context.Context, req ct
 	return ctrl.Result{}, nil
 }
 
-func (r *CustomPolicyDefinitionReconciler) reconcileSpec(customPolicyDefinitionCR *capabilitiesv1beta1.CustomPolicyDefinition, logger logr.Logger) (*CustomPolicyDefinitionStatusReconciler, error) {
+func (r *CustomPolicyDefinitionReconciler) reconcileSpec(ctx context.Context, customPolicyDefinitionCR *capabilitiesv1beta1.CustomPolicyDefinition, logger logr.Logger) (*CustomPolicyDefinitionStatusReconciler, error) {
 	providerAccount, err := controllerhelper.LookupProviderAccount(r.Client(), customPolicyDefinitionCR.Namespace, customPolicyDefinitionCR.Spec.ProviderAccountRef, logger)
 	if err != nil {
 		statusReconciler := NewCustomPolicyDefinitionStatusReconciler(r.BaseReconciler, customPolicyDefinitionCR, "", nil, err)
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		statusReconciler := NewCustomPolicyDefinitionStatusReconciler(r.BaseReconciler, customPolicyDefinitionCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err

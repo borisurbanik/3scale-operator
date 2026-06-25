@@ -100,29 +100,3 @@ func reqFor(ns, name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}
 }
 
-// runCAProviderTest is the common assertion loop used by every per-controller
-// test. It seeds the fake API server, calls reconcile, and checks that the CA
-// validation error is surfaced either as a returned error or via conditionCheck.
-//
-// conditionCheck may be nil when the error is only expected via the return value.
-func runCAProviderTest(
-	t *testing.T,
-	objects []runtime.Object,
-	reconcileFn func(base *reconcilers.BaseReconciler, ca *controllerhelper.CAProvider) bool,
-	conditionCheck func(cl client.Client) bool,
-) {
-	t.Helper()
-	base, caProvider := setupCATestReconciler(t, objects...)
-
-	errorSurfaced := reconcileFn(base, caProvider)
-	if errorSurfaced {
-		return
-	}
-
-	if conditionCheck == nil {
-		t.Fatal("CA error was not surfaced via return value and no conditionCheck is configured")
-	}
-	if !conditionCheck(base.Client()) {
-		t.Error("expected CA validation error to be visible via status condition but it was not")
-	}
-}

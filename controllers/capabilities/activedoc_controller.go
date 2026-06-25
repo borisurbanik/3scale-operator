@@ -90,7 +90,7 @@ func (r *ActiveDocReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	statusReconciler, reconcileErr := r.reconcileSpec(activeDocCR, reqLogger)
+	statusReconciler, reconcileErr := r.reconcileSpec(ctx, activeDocCR, reqLogger)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -126,7 +126,7 @@ func (r *ActiveDocReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *ActiveDocReconciler) reconcileSpec(activeDocCR *capabilitiesv1beta1.ActiveDoc, logger logr.Logger) (*ActiveDocStatusReconciler, error) {
+func (r *ActiveDocReconciler) reconcileSpec(ctx context.Context, activeDocCR *capabilitiesv1beta1.ActiveDoc, logger logr.Logger) (*ActiveDocStatusReconciler, error) {
 	err := r.validateSpec(activeDocCR)
 	if err != nil {
 		statusReconciler := NewActiveDocStatusReconciler(r.BaseReconciler, activeDocCR, "", nil, err)
@@ -145,7 +145,7 @@ func (r *ActiveDocReconciler) reconcileSpec(activeDocCR *capabilitiesv1beta1.Act
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		statusReconciler := NewActiveDocStatusReconciler(r.BaseReconciler, activeDocCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err

@@ -84,7 +84,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/#foreground-cascading-deletion
 	if application.GetDeletionTimestamp() != nil {
 		if controllerutil.ContainsFinalizer(application, applicationFinalizer) {
-			err = r.removeApplicationFrom3scale(application)
+			err = r.removeApplicationFrom3scale(ctx, application)
 			if err != nil {
 				r.EventRecorder().Eventf(application, corev1.EventTypeWarning, "Failed to delete application", "%v", err)
 				return ctrl.Result{}, err
@@ -143,8 +143,16 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
+		statusReconciler := NewApplicationStatusReconciler(r.BaseReconciler, application, nil, "", err)
+		statusResult, statusUpdateErr := statusReconciler.Reconcile()
+		if statusUpdateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to sync application: %v. Failed to update application status: %w", err, statusUpdateErr)
+		}
+		if statusResult.Requeue {
+			return statusResult, nil
+		}
 		return ctrl.Result{}, err
 	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
@@ -274,7 +282,7 @@ func (r *ApplicationReconciler) applicationReconciler(applicationResource *capab
 	return reconciler.Reconcile()
 }
 
-func (r *ApplicationReconciler) removeApplicationFrom3scale(application *capabilitiesv1beta1.Application) error {
+func (r *ApplicationReconciler) removeApplicationFrom3scale(ctx context.Context, application *capabilitiesv1beta1.Application) error {
 	logger := r.Logger().WithValues("application", client.ObjectKey{Name: application.Name, Namespace: application.Namespace})
 
 	// get Account
@@ -310,7 +318,7 @@ func (r *ApplicationReconciler) removeApplicationFrom3scale(application *capabil
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig()
+	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
 	if err != nil {
 		return err
 	}
