@@ -99,4 +99,3 @@ func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconciler
 func reqFor(ns, name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}
 }
-

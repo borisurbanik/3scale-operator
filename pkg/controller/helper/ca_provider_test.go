@@ -128,8 +128,8 @@ MIIEpAIBAAKCAQEAtest
 			expectError: true,
 		},
 		{
-			name:        "ConfigMap contains a mix of CERTIFICATE and non-CERTIFICATE blocks",
-			configMap:   createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM+"\n"+`-----BEGIN RSA PRIVATE KEY-----
+			name: "ConfigMap contains a mix of CERTIFICATE and non-CERTIFICATE blocks",
+			configMap: createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM+"\n"+`-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAtest
 -----END RSA PRIVATE KEY-----`),
 			// AppendCertsFromPEM skips non-CERTIFICATE blocks; the valid cert is still appended → no error

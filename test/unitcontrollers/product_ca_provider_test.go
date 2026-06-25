@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -46,7 +45,7 @@ func TestProductReconciler_Reconcile(t *testing.T) {
 								{
 									Name:          "apicast",
 									Version:       "builtin",
-									Configuration: k8sruntime.RawExtension{Raw: []byte(`{}`)},
+									Configuration: runtime.RawExtension{Raw: []byte(`{}`)},
 									Enabled:       true,
 								},
 							},
