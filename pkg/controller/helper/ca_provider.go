@@ -42,16 +42,21 @@ const (
 	CAValidationReasonInvalidFormat = "InvalidCAFormat"
 )
 
+// cacheEntry holds the three fields that must be read and written together.
+type cacheEntry struct {
+	config          *tls.Config
+	cachedErr       error
+	resourceVersion string
+}
+
 // CAProvider makes the operator's outbound TLS trust the CA bundle supplied by the
 // platform team at runtime. The cache is keyed by ConfigMap ResourceVersion so that
 // bundle rotations are picked up on the next reconcile without an operator restart.
 type CAProvider struct {
-	client              client.Client
-	namespace           string
-	mu                  sync.RWMutex
-	config              *tls.Config
-	cachedErr           error
-	lastResourceVersion string
+	client    client.Client
+	namespace string
+	mu        sync.RWMutex
+	cache     cacheEntry
 }
 
 func NewCAProvider(cl client.Client, namespace string) *CAProvider {
@@ -73,10 +78,10 @@ func (p *CAProvider) TLSConfig(ctx context.Context) (*tls.Config, error) {
 	if err != nil && !notFound {
 		// Prefer stale-but-valid config over surfacing a transient API error mid-reconcile.
 		p.mu.RLock()
-		config, cachedErr := p.config, p.cachedErr
+		state := p.cache
 		p.mu.RUnlock()
-		if p.lastResourceVersion != "" || config != nil || cachedErr != nil {
-			return config, cachedErr
+		if state.resourceVersion != "" || state.config != nil || state.cachedErr != nil {
+			return state.config, state.cachedErr
 		}
 		return nil, err
 	}
@@ -86,32 +91,29 @@ func (p *CAProvider) TLSConfig(ctx context.Context) (*tls.Config, error) {
 	}
 
 	p.mu.RLock()
-	if p.lastResourceVersion == currentRV && (currentRV != "" || notFound) {
-		config, cachedErr := p.config, p.cachedErr
-		p.mu.RUnlock()
-		return config, cachedErr
-	}
+	state := p.cache
 	p.mu.RUnlock()
+	if state.resourceVersion == currentRV && (currentRV != "" || notFound) {
+		return state.config, state.cachedErr
+	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	// Another goroutine may have reloaded while we waited for the write lock.
-	if p.lastResourceVersion == currentRV && (currentRV != "" || notFound) {
-		return p.config, p.cachedErr
+	if p.cache.resourceVersion == currentRV && (currentRV != "" || notFound) {
+		return p.cache.config, p.cache.cachedErr
 	}
 
 	if notFound {
-		p.config = nil
-		p.cachedErr = nil
-		p.lastResourceVersion = ""
+		p.cache = cacheEntry{}
 		return nil, nil
 	}
 
-	loadErr := p.loadFromConfigMap(cm)
-	p.cachedErr = loadErr
-	p.lastResourceVersion = currentRV
-	return p.config, p.cachedErr
+	newState := loadFromConfigMap(cm)
+	newState.resourceVersion = currentRV
+	p.cache = newState
+	return p.cache.config, p.cache.cachedErr
 }
 
 // Reload forces a synchronous re-parse regardless of ResourceVersion. Use when
@@ -125,49 +127,50 @@ func (p *CAProvider) Reload(ctx context.Context) error {
 	defer p.mu.Unlock()
 
 	if apierrors.IsNotFound(err) {
-		p.config = nil
-		p.cachedErr = nil
-		p.lastResourceVersion = ""
+		p.cache = cacheEntry{}
 		return nil
 	}
 	if err != nil {
-		p.cachedErr = err
-		p.lastResourceVersion = ""
+		p.cache = cacheEntry{cachedErr: err}
 		return err
 	}
 
-	loadErr := p.loadFromConfigMap(cm)
-	p.cachedErr = loadErr
-	p.lastResourceVersion = cm.ResourceVersion
-	return loadErr
+	newState := loadFromConfigMap(cm)
+	newState.resourceVersion = cm.ResourceVersion
+	p.cache = newState
+	return newState.cachedErr
 }
 
-// loadFromConfigMap must be called with p.mu write-locked.
-func (p *CAProvider) loadFromConfigMap(cm *corev1.ConfigMap) error {
-	p.config = nil
-
+// loadFromConfigMap parses the CA bundle from a ConfigMap and returns a cacheEntry.
+// It does not access any shared state.
+func loadFromConfigMap(cm *corev1.ConfigMap) cacheEntry {
 	val, exists := cm.Data[CABundleConfigMapKey]
 	if !exists {
-		return nil
+		return cacheEntry{}
 	}
 
 	if len(val) == 0 {
-		return &CAValidationError{
-			Reason:  CAValidationReasonInvalidFormat,
-			Message: fmt.Sprintf("Key %q in ConfigMap %s/%s is empty", CABundleConfigMapKey, cm.Namespace, cm.Name),
+		return cacheEntry{
+			cachedErr: &CAValidationError{
+				Reason:  CAValidationReasonInvalidFormat,
+				Message: fmt.Sprintf("Key %q in ConfigMap %s/%s is empty", CABundleConfigMapKey, cm.Namespace, cm.Name),
+			},
 		}
 	}
 
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM([]byte(val)) {
-		return &CAValidationError{
-			Reason:  CAValidationReasonInvalidFormat,
-			Message: "No valid PEM-encoded certificates found in CA bundle",
+		return cacheEntry{
+			cachedErr: &CAValidationError{
+				Reason:  CAValidationReasonInvalidFormat,
+				Message: "No valid PEM-encoded certificates found in CA bundle",
+			},
 		}
 	}
 
-	p.config = &tls.Config{
-		RootCAs: certPool,
+	return cacheEntry{
+		config: &tls.Config{
+			RootCAs: certPool,
+		},
 	}
-	return nil
 }

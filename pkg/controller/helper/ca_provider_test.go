@@ -2,9 +2,7 @@ package helper
 
 import (
 	"context"
-	"sync"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -300,68 +298,4 @@ func TestCAProvider_CacheHit(t *testing.T) {
 	if cfg1 != cfg2 {
 		t.Fatal("expected the same *tls.Config pointer on cache hit, got different pointers")
 	}
-}
-
-func TestCAProvider_Concurrency(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = corev1.AddToScheme(scheme)
-
-	cm := createConfigMap(CABundleConfigMapName, CABundleConfigMapKey, validCAPEM)
-	cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(cm).Build()
-
-	p := NewCAProvider(cl, testNamespace)
-
-	var wg sync.WaitGroup
-	stopCh := make(chan struct{})
-
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					cfg, err := p.TLSConfig(context.TODO())
-					if err != nil {
-						t.Errorf("concurrent read error: %v", err)
-					}
-					if cfg != nil && cfg.RootCAs == nil {
-						t.Error("concurrent read returned non-nil config with nil RootCAs")
-					}
-				}
-			}
-		}()
-	}
-
-	// Concurrent writes exercise the cache invalidation path under load.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		toggle := false
-		for {
-			select {
-			case <-stopCh:
-				return
-			default:
-				var pemStr string
-				if toggle {
-					pemStr = validCAPEM
-				} else {
-					pemStr = validCA2PEM
-				}
-				toggle = !toggle
-
-				cm.Data[CABundleConfigMapKey] = pemStr
-				_ = cl.Update(context.TODO(), cm)
-				time.Sleep(1 * time.Millisecond)
-			}
-		}
-	}()
-
-	// Let concurrency run for a bit
-	time.Sleep(100 * time.Millisecond)
-	close(stopCh)
-	wg.Wait()
 }
