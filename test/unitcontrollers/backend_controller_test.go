@@ -23,7 +23,7 @@ func TestBackendReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// BackendReconciler.reconcile() calls CAProvider after the finalizer
+			// BackendReconciler.reconcile() calls HTTPClientSource after the finalizer
 			// guard. The CR is pre-seeded with the finalizer and a complete Metrics
 			// map (including "hits") so that SetDefaults() returns false and no
 			// early requeue occurs.
@@ -48,7 +48,6 @@ func TestBackendReconciler_Reconcile(t *testing.T) {
 					return b
 				}(),
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.Backend{}
@@ -63,8 +62,8 @@ func TestBackendReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.BackendReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.BackendReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-backend"))
 
 			if tc.conditionCheck != nil {

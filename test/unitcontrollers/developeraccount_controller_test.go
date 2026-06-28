@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -23,21 +24,31 @@ func TestDeveloperAccountReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// DeveloperAccountReconciler.reconcileSpec() calls CAProvider after the
-			// metadata guard (finalizer). The CR is pre-seeded with the finalizer
+			// DeveloperAccountReconciler.reconcileSpec() calls HTTPClientSource after
+			// the metadata guard (finalizer). The CR is pre-seeded with the finalizer
 			// already set.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
 				func() *capabilitiesv1beta1.DeveloperAccount {
 					a := &capabilitiesv1beta1.DeveloperAccount{
-						ObjectMeta: metav1.ObjectMeta{Name: "test-account", Namespace: caTestNamespace},
-						Spec:       capabilitiesv1beta1.DeveloperAccountSpec{OrgName: "testorg"},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-account",
+							Namespace: caTestNamespace,
+							// accountID annotation in sync with Status.ID so
+							// reconcileMetadata() returns false and reconcileSpec runs.
+							Annotations: map[string]string{"accountID": "42"},
+						},
+						Spec: capabilitiesv1beta1.DeveloperAccountSpec{OrgName: "testorg"},
+						// Status.ID non-nil so findDevAccountByID makes an HTTP call
+						// that hits the failing transport — exercising the TLS error path.
+						Status: capabilitiesv1beta1.DeveloperAccountStatus{
+							ID: ptr.To(int64(42)),
+						},
 					}
 					controllerutil.AddFinalizer(a, "developeraccount.capabilities.3scale.net/finalizer")
 					return a
 				}(),
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.DeveloperAccount{}
@@ -52,8 +63,8 @@ func TestDeveloperAccountReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.DeveloperAccountReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.DeveloperAccountReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-account"))
 
 			if tc.conditionCheck != nil {

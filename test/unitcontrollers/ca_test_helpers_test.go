@@ -2,11 +2,12 @@ package test
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	capabilitiesv1alpha1 "github.com/3scale/3scale-operator/apis/capabilities/v1alpha1"
 	capabilitiesv1beta1 "github.com/3scale/3scale-operator/apis/capabilities/v1beta1"
-	controllerhelper "github.com/3scale/3scale-operator/pkg/controller/helper"
 	"github.com/3scale/3scale-operator/pkg/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,26 +24,33 @@ import (
 
 const caTestNamespace = "operator-unittest"
 
-// invalidCABundlePEM is a PEM block whose type is not "CERTIFICATE".
-// CAProvider rejects it with a CAValidationError, which is the error
-// this test suite is verifying is surfaced by each reconciler.
-const invalidCABundlePEM = `-----BEGIN PRIVATE KEY-----
-dGVzdA==
------END PRIVATE KEY-----
-`
+// failingTransport is an http.RoundTripper that always returns a TLS-like error,
+// simulating the effect of a misconfigured or invalid CA bundle.
+type failingTransport struct{}
 
-// caBundle returns the threescale-ca-bundle ConfigMap with an invalid PEM value.
-func caBundle() *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      controllerhelper.CABundleConfigMapName,
-			Namespace: caTestNamespace,
-		},
-		Data: map[string]string{
-			controllerhelper.CABundleConfigMapKey: invalidCABundlePEM,
-		},
-	}
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("tls: failed to verify certificate: x509: certificate signed by unknown authority")
 }
+
+// workingHTTPClientSource returns a real *http.Client with system roots.
+// Use for tests that don't exercise CA errors.
+type workingHTTPClientSource struct{}
+
+func (workingHTTPClientSource) GetHTTPClient() *http.Client {
+	return &http.Client{}
+}
+
+// failingHTTPClientSource returns a *http.Client whose transport always fails
+// with a TLS-like error.  Use for CA error surfacing tests.
+type failingHTTPClientSource struct{}
+
+func (failingHTTPClientSource) GetHTTPClient() *http.Client {
+	return &http.Client{Transport: failingTransport{}}
+}
+
+// Verify both types satisfy the interface at compile time.
+var _ reconcilers.HTTPClientSource = workingHTTPClientSource{}
+var _ reconcilers.HTTPClientSource = failingHTTPClientSource{}
 
 // providerAccountSecret returns the well-known secret that LookupProviderAccount
 // reads when no ProviderAccountRef is set on a CR.
@@ -60,9 +68,10 @@ func providerAccountSecret() *corev1.Secret {
 	}
 }
 
-// setupCATestReconciler builds a BaseReconciler backed by a fake client pre-seeded
-// with the supplied objects, and a CAProvider pointed at the same client.
-func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconcilers.BaseReconciler, *controllerhelper.CAProvider) {
+// setupCATestReconciler builds a BaseReconciler backed by a fake client
+// pre-seeded with the supplied objects, and a failingHTTPClientSource test
+// double that simulates a TLS error on every outbound request.
+func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconcilers.BaseReconciler, reconcilers.HTTPClientSource) {
 	t.Helper()
 	s := scheme.Scheme
 	if err := capabilitiesv1beta1.AddToScheme(s); err != nil {
@@ -92,8 +101,8 @@ func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconciler
 		ctrl.Log.WithName("ca-provider-test"),
 		clientset.Discovery(), recorder,
 	)
-	caProvider := controllerhelper.NewCAProvider(cl, caTestNamespace)
-	return base, caProvider
+
+	return base, failingHTTPClientSource{}
 }
 
 func reqFor(ns, name string) reconcile.Request {

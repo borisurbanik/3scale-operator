@@ -42,7 +42,7 @@ import (
 // ApplicationAuthReconciler reconciles a ApplicationAuth object
 type ApplicationAuthReconciler struct {
 	*reconcilers.BaseReconciler
-	CAProvider *controllerhelper.CAProvider
+	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 type AuthSecret struct {
@@ -166,21 +166,9 @@ func (r *ApplicationAuthReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// connect to the 3scale porta client
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		statusReconciler := NewApplicationAuthStatusReconciler(r.BaseReconciler, applicationAuth, err)
-		statusResult, statusErr := statusReconciler.Reconcile()
-		if statusErr != nil {
-			return ctrl.Result{}, statusErr
-		}
-		if statusResult.Requeue {
-			reqLogger.Info("Reconciling status not finished. Requeueing.")
-			return statusResult, nil
-		}
-		return ctrl.Result{}, err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(applicationAuth.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -24,7 +25,7 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// DeveloperUserReconciler.reconcileSpec() calls CAProvider after:
+			// DeveloperUserReconciler.reconcileSpec() calls HTTPClientSource after:
 			//   1. the metadata guard (finalizer)
 			//   2. the ownerRef guard (EnsureOwnerReference)
 			//   3. findParentAccount — the parent DeveloperAccount must be IsReady()
@@ -70,6 +71,10 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 						},
 						Spec: capabilitiesv1beta1.DeveloperAccountSpec{OrgName: "testorg"},
 						Status: capabilitiesv1beta1.DeveloperAccountStatus{
+							// ID non-nil so findDevUserByUsernameAndEmail can dereference it
+							// without a nil pointer panic; the HTTP call then hits the
+							// failing transport — exercising the TLS error path.
+							ID: ptr.To(int64(42)),
 							Conditions: common.Conditions{
 								{
 									Type:   capabilitiesv1beta1.DeveloperAccountReadyConditionType,
@@ -80,7 +85,6 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 					}
 				}(),
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.DeveloperUser{}
@@ -95,8 +99,8 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.DeveloperUserReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.DeveloperUserReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-user"))
 
 			if tc.conditionCheck != nil {

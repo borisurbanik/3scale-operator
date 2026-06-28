@@ -24,7 +24,7 @@ func TestApplicationAuthReconciler_Reconcile(t *testing.T) {
 		{
 			// ApplicationAuthReconciler has no finalizer guard. All dependencies
 			// (Application, DeveloperAccount, Product, provider-account secret) are
-			// pre-seeded so the reconciler reaches CAProvider on the first call.
+			// pre-seeded so the reconciler reaches HTTPClientSource on the first call.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
 				&capabilitiesv1beta1.ApplicationAuth{
@@ -53,7 +53,6 @@ func TestApplicationAuthReconciler_Reconcile(t *testing.T) {
 					Spec:       capabilitiesv1beta1.ProductSpec{Name: "test", SystemName: "test"},
 				},
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.ApplicationAuth{}
@@ -68,8 +67,8 @@ func TestApplicationAuthReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.ApplicationAuthReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.ApplicationAuthReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-appauth"))
 
 			if tc.conditionCheck != nil {

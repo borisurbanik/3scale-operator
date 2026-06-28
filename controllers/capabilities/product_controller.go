@@ -39,7 +39,7 @@ import (
 // ProductReconciler reconciles a Product object
 type ProductReconciler struct {
 	*reconcilers.BaseReconciler
-	CAProvider *controllerhelper.CAProvider
+	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 const productFinalizer = "product.capabilities.3scale.net/finalizer"
@@ -82,7 +82,7 @@ func (r *ProductReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Ignore deleted Products, this can happen when foregroundDeletion is enabled
 	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/#foreground-cascading-deletion
 	if product.GetDeletionTimestamp() != nil && controllerutil.ContainsFinalizer(product, productFinalizer) {
-		err = r.removeProductFrom3scale(ctx, product)
+		err = r.removeProductFrom3scale(product)
 		if err != nil {
 			r.EventRecorder().Eventf(product, corev1.EventTypeWarning, "Failed to delete product", "%v", err)
 			return ctrl.Result{}, err
@@ -147,7 +147,7 @@ func (r *ProductReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	statusReconciler, reconcileErr := r.reconcile(ctx, product)
+	statusReconciler, reconcileErr := r.reconcile(product)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -184,7 +184,7 @@ func (r *ProductReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, reconcileErr
 }
 
-func (r *ProductReconciler) reconcile(ctx context.Context, productResource *capabilitiesv1beta1.Product) (*ProductStatusReconciler, error) {
+func (r *ProductReconciler) reconcile(productResource *capabilitiesv1beta1.Product) (*ProductStatusReconciler, error) {
 	logger := r.Logger().WithValues("product", productResource.Name)
 
 	err := r.validateSpec(productResource)
@@ -206,13 +206,9 @@ func (r *ProductReconciler) reconcile(ctx context.Context, productResource *capa
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		statusReconciler := NewProductStatusReconciler(r.BaseReconciler, productResource, nil, providerAccount.AdminURLStr, err)
-		return statusReconciler, err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(productResource.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewProductStatusReconciler(r.BaseReconciler, productResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -387,7 +383,7 @@ func computeBackendUsageList(list []capabilitiesv1beta1.Backend, backendUsageMap
 	return result
 }
 
-func (r *ProductReconciler) removeProductFrom3scale(ctx context.Context, product *capabilitiesv1beta1.Product) error {
+func (r *ProductReconciler) removeProductFrom3scale(product *capabilitiesv1beta1.Product) error {
 	logger := r.Logger().WithValues("product", client.ObjectKey{Name: product.Name, Namespace: product.Namespace})
 
 	// Attempt to remove product only if product.Status.ID is present
@@ -405,12 +401,9 @@ func (r *ProductReconciler) removeProductFrom3scale(ctx context.Context, product
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		return err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(product.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

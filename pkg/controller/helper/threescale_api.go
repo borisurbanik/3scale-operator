@@ -19,76 +19,40 @@ type ProviderAccount struct {
 	Token       string
 }
 
-// PortaClient instantiates porta_client.ThreeScaleClient from ProviderAccount object
-func PortaClient(providerAccount *ProviderAccount, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	return PortaClientFromURLString(providerAccount.AdminURLStr, providerAccount.Token, insecureSkipVerify)
-}
-
-// PortaClientWithTLSConfig instantiates porta_client.ThreeScaleClient from a ProviderAccount
-// with an optional *tls.Config. When tlsConfig is non-nil it is used directly as the transport's
-// TLS configuration and insecureSkipVerify is ignored. When tlsConfig is nil the function behaves
-// identically to PortaClient.
-func PortaClientWithTLSConfig(providerAccount *ProviderAccount, tlsConfig *tls.Config, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	adminURL, err := url.Parse(providerAccount.AdminURLStr)
+// PortaClientFromAccount instantiates a ThreeScaleClient from a ProviderAccount
+// using the supplied *http.Client.  The httpClient is expected to have been
+// obtained from an HTTPClientSource for the current reconcile invocation.
+// When insecureSkipVerify is true, httpClient is ignored and a fresh client
+// with InsecureSkipVerify=true is used instead (per-CR annotation behaviour).
+func PortaClientFromAccount(account *ProviderAccount, httpClient *http.Client, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	adminURL, err := url.Parse(account.AdminURLStr)
 	if err != nil {
 		return nil, err
 	}
-	return PortaClientFromURLWithTLSConfig(adminURL, providerAccount.Token, tlsConfig, insecureSkipVerify)
+	return PortaClientFromURLWithClient(adminURL, account.Token, httpClient, insecureSkipVerify)
 }
 
-// PortaClientFromURLString instantiates porta_client.ThreeScaleClient from url string
-func PortaClientFromURLString(adminURLStr, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	adminURL, err := url.Parse(adminURLStr)
+// PortaClientFromURLWithClient instantiates a ThreeScaleClient from an admin URL
+// and access token using the supplied *http.Client.  Used by TenantReconciler
+// which works with a raw *url.URL rather than a ProviderAccount.
+// When insecureSkipVerify is true, httpClient is ignored and a fresh client
+// with InsecureSkipVerify=true is used instead (per-CR annotation behaviour).
+func PortaClientFromURLWithClient(adminURL *url.URL, token string, httpClient *http.Client, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	if insecureSkipVerify {
+		var transport http.RoundTripper = &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		if helper.GetEnvVar(HTTP_VERBOSE_ENVVAR, "0") == "1" {
+			transport = &helper.Transport{Transport: transport}
+		}
+		httpClient = &http.Client{Transport: transport}
+	}
+	adminPortal, err := threescaleapi.NewAdminPortal(adminURL.Scheme, adminURL.Hostname(), helper.PortFromURL(adminURL))
 	if err != nil {
 		return nil, err
 	}
-	return PortaClientFromURL(adminURL, token, insecureSkipVerify)
-}
-
-// PortaClientFromURL instantiates porta_client.ThreeScaleClient from admin url object
-func PortaClientFromURL(url *url.URL, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	adminPortal, err := threescaleapi.NewAdminPortal(url.Scheme, url.Hostname(), helper.PortFromURL(url))
-	if err != nil {
-		return nil, err
-	}
-
-	// Activated by some env var or Spec param
-	var transport http.RoundTripper = &http.Transport{
-		Proxy:           http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureSkipVerify},
-	}
-
-	if helper.GetEnvVar(HTTP_VERBOSE_ENVVAR, "0") == "1" {
-		transport = &helper.Transport{Transport: transport}
-	}
-
-	return threescaleapi.NewThreeScale(adminPortal, token, &http.Client{Transport: transport}), nil
-}
-
-// PortaClientFromURLWithTLSConfig instantiates porta_client.ThreeScaleClient from admin url object
-// with an optional *tls.Config. When tlsConfig is non-nil it is used directly as the transport's
-// TLS configuration and insecureSkipVerify is ignored. When tlsConfig is nil the function behaves
-// identically to PortaClientFromURL.
-func PortaClientFromURLWithTLSConfig(url *url.URL, token string, tlsConfig *tls.Config, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	if tlsConfig == nil {
-		return PortaClientFromURL(url, token, insecureSkipVerify)
-	}
-
-	adminPortal, err := threescaleapi.NewAdminPortal(url.Scheme, url.Hostname(), helper.PortFromURL(url))
-	if err != nil {
-		return nil, err
-	}
-
-	var transport http.RoundTripper = &http.Transport{
-		Proxy:           http.ProxyFromEnvironment,
-		TLSClientConfig: tlsConfig,
-	}
-
-	if helper.GetEnvVar(HTTP_VERBOSE_ENVVAR, "0") == "1" {
-		transport = &helper.Transport{Transport: transport}
-	}
-
-	return threescaleapi.NewThreeScale(adminPortal, token, &http.Client{Transport: transport}), nil
+	return threescaleapi.NewThreeScale(adminPortal, token, httpClient), nil
 }
 
 // GetInsecureSkipVerifyAnnotation extracts the insecure_skip_verify annotation from an object

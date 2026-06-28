@@ -29,7 +29,7 @@ import (
 	capabilitiesv1beta1 "github.com/3scale/3scale-operator/apis/capabilities/v1beta1"
 	appscontroller "github.com/3scale/3scale-operator/controllers/apps"
 	capabilitiescontroller "github.com/3scale/3scale-operator/controllers/capabilities"
-	controllerhelper "github.com/3scale/3scale-operator/pkg/controller/helper"
+	configurationcontroller "github.com/3scale/3scale-operator/controllers/configuration"
 	"github.com/3scale/3scale-operator/pkg/reconcilers"
 	"github.com/3scale/3scale-operator/version"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -162,7 +162,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	caProvider := controllerhelper.NewCAProvider(mgr.GetClient(), operatorInstallationNamespace)
+	watcher := &configurationcontroller.CABundleWatcher{
+		Client:    mgr.GetClient(),
+		Recorder:  mgr.GetEventRecorderFor("CABundleWatcher"),
+		Namespace: operatorInstallationNamespace,
+	}
+	if err = watcher.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CABundleWatcher")
+		os.Exit(1)
+	}
 
 	secretLabelSelector, err := apimachinerymetav1.ParseToLabelSelector("apimanager.apps.3scale.net/watched-by=apimanager")
 	if err != nil {
@@ -267,7 +275,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Tenant"),
 			discoveryClientTenant,
 			mgr.GetEventRecorderFor("Tenant")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tenant")
 		os.Exit(1)
@@ -284,7 +292,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Backend"),
 			discoveryClientBackend,
 			mgr.GetEventRecorderFor("Backend")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Backend")
 		os.Exit(1)
@@ -301,7 +309,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Product"),
 			discoveryClientProduct,
 			mgr.GetEventRecorderFor("Product")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Product")
 		os.Exit(1)
@@ -350,7 +358,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("ActiveDoc"),
 			discoveryClientActiveDoc,
 			mgr.GetEventRecorderFor("ActiveDoc")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ActiveDoc")
 		os.Exit(1)
@@ -368,7 +376,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("CustomPolicyDefinition"),
 			discoveryClientCustomPolicyDefinition,
 			mgr.GetEventRecorderFor("CustomPolicyDefinition")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomPolicyDefinition")
 		os.Exit(1)
@@ -386,7 +394,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("DeveloperAccount"),
 			discoveryClientDeveloperAccount,
 			mgr.GetEventRecorderFor("DeveloperAccount")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DeveloperAccount")
 		os.Exit(1)
@@ -404,7 +412,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("DeveloperUser"),
 			discoveryClientDeveloperUser,
 			mgr.GetEventRecorderFor("DeveloperUser")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DeveloperUser")
 		os.Exit(1)
@@ -424,7 +432,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("ProxyConfigPromote"),
 			discoveryProxyConfigPromote,
 			mgr.GetEventRecorderFor("ProxyConfigPromote")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ProxyConfigPromote")
 		os.Exit(1)
@@ -442,7 +450,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Application"),
 			discoveryApplication,
 			mgr.GetEventRecorderFor("Application")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Application")
 		os.Exit(1)
@@ -460,7 +468,7 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Application"),
 			discoveryApplicationAuth,
 			mgr.GetEventRecorderFor("Application")),
-		CAProvider: caProvider,
+		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Application")
 		os.Exit(1)

@@ -22,10 +22,10 @@ func TestProxyConfigPromoteReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// ProxyConfigPromoteReconciler calls CAProvider after fetching the
+			// ProxyConfigPromoteReconciler calls HTTPClientSource after fetching the
 			// Product and resolving the provider account. No finalizer guard. The
 			// Product and provider-account secret are pre-seeded so the reconciler
-			// reaches CAProvider on the first call.
+			// reaches HTTPClientSource on the first call.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
 				&capabilitiesv1beta1.ProxyConfigPromote{
@@ -39,7 +39,6 @@ func TestProxyConfigPromoteReconciler_Reconcile(t *testing.T) {
 					Spec:       capabilitiesv1beta1.ProductSpec{Name: "test", SystemName: "test"},
 				},
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.ProxyConfigPromote{}
@@ -54,8 +53,8 @@ func TestProxyConfigPromoteReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.ProxyConfigPromoteReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.ProxyConfigPromoteReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-pcp"))
 
 			if tc.conditionCheck != nil {

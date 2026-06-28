@@ -22,7 +22,7 @@ func TestCustomPolicyDefinitionReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// CustomPolicyDefinitionReconciler.reconcileSpec() calls CAProvider
+			// CustomPolicyDefinitionReconciler.reconcileSpec() calls HTTPClientSource
 			// directly with no finalizer guard.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
@@ -40,7 +40,6 @@ func TestCustomPolicyDefinitionReconciler_Reconcile(t *testing.T) {
 					},
 				},
 				providerAccountSecret(),
-				caBundle(),
 			},
 			conditionCheck: func(_ error, cl client.Client) bool {
 				cr := &capabilitiesv1beta1.CustomPolicyDefinition{}
@@ -55,8 +54,8 @@ func TestCustomPolicyDefinitionReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, caProvider := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.CustomPolicyDefinitionReconciler{BaseReconciler: base, CAProvider: caProvider}
+			base, failingSource := setupCATestReconciler(t, tc.objects...)
+			r := &capabilitiescontrollers.CustomPolicyDefinitionReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-cpd"))
 
 			if tc.conditionCheck != nil {

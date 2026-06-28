@@ -48,7 +48,7 @@ const (
 // DeveloperAccountReconciler reconciles a DeveloperAccount object
 type DeveloperAccountReconciler struct {
 	*reconcilers.BaseReconciler
-	CAProvider *controllerhelper.CAProvider
+	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 // blank assignment to verify that DeveloperAccountReconciler implements reconcile.Reconciler
@@ -87,7 +87,7 @@ func (r *DeveloperAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// DeveloperAccount has been marked for deletion
 	if developerAccountCR.GetDeletionTimestamp() != nil && controllerutil.ContainsFinalizer(developerAccountCR, developerAccountFinalizer) {
-		err = r.removeDeveloperAccountFrom3scale(ctx, developerAccountCR)
+		err = r.removeDeveloperAccountFrom3scale(developerAccountCR)
 		if err != nil {
 			r.EventRecorder().Eventf(developerAccountCR, corev1.EventTypeWarning, "Failed to delete developer account", "%v", err)
 			return ctrl.Result{}, err
@@ -146,7 +146,7 @@ func (r *DeveloperAccountReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	statusReconciler, reconcileErr := r.reconcileSpec(ctx, developerAccountCR, reqLogger)
+	statusReconciler, reconcileErr := r.reconcileSpec(developerAccountCR, reqLogger)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -207,7 +207,7 @@ func (r *DeveloperAccountReconciler) reconcileMetadata(devAccountCR *capabilitie
 	return changed
 }
 
-func (r *DeveloperAccountReconciler) reconcileSpec(ctx context.Context, accountCR *capabilitiesv1beta1.DeveloperAccount, logger logr.Logger) (*DeveloperAccountStatusReconciler, error) {
+func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta1.DeveloperAccount, logger logr.Logger) (*DeveloperAccountStatusReconciler, error) {
 	err := r.validateSpec(accountCR)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, "", nil, err)
@@ -220,13 +220,9 @@ func (r *DeveloperAccountReconciler) reconcileSpec(ctx context.Context, accountC
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
-		return statusReconciler, err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(accountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -259,7 +255,7 @@ func (r *DeveloperAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(ctx context.Context, developerAccountCR *capabilitiesv1beta1.DeveloperAccount) error {
+func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerAccountCR *capabilitiesv1beta1.DeveloperAccount) error {
 	logger := r.Logger().WithValues("developeraccount", client.ObjectKey{Name: developerAccountCR.Name, Namespace: developerAccountCR.Namespace})
 
 	// Attempt to remove developer account only if developerAccountCR.Status.ID is present
@@ -277,12 +273,9 @@ func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(ctx contex
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		return err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerAccountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(developerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(developerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

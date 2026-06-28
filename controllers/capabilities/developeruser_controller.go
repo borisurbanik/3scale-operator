@@ -52,7 +52,7 @@ const (
 // DeveloperUserReconciler reconciles a DeveloperUser object
 type DeveloperUserReconciler struct {
 	*reconcilers.BaseReconciler
-	CAProvider *controllerhelper.CAProvider
+	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 // blank assignment to verify that DeveloperUserReconciler implements reconcile.Reconciler
@@ -91,7 +91,7 @@ func (r *DeveloperUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// DeveloperUser has been marked for deletion
 	if developerUserCR.GetDeletionTimestamp() != nil && controllerutil.ContainsFinalizer(developerUserCR, developerUserFinalizer) {
-		err = r.removeDeveloperUserFrom3scale(ctx, developerUserCR)
+		err = r.removeDeveloperUserFrom3scale(developerUserCR)
 		if err != nil {
 			r.EventRecorder().Eventf(developerUserCR, corev1.EventTypeWarning, "Failed to delete developer user", "%v", err)
 
@@ -156,7 +156,7 @@ func (r *DeveloperUserReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	statusReconciler, reconcileErr := r.reconcileSpec(ctx, developerUserCR, reqLogger)
+	statusReconciler, reconcileErr := r.reconcileSpec(developerUserCR, reqLogger)
 	statusResult, statusUpdateErr := statusReconciler.Reconcile()
 	if statusUpdateErr != nil {
 		if reconcileErr != nil {
@@ -217,7 +217,7 @@ func (r *DeveloperUserReconciler) reconcileMetadata(devUserCR *capabilitiesv1bet
 	return changed
 }
 
-func (r *DeveloperUserReconciler) reconcileSpec(ctx context.Context, userCR *capabilitiesv1beta1.DeveloperUser, logger logr.Logger) (*DeveloperUserStatusReconciler, error) {
+func (r *DeveloperUserReconciler) reconcileSpec(userCR *capabilitiesv1beta1.DeveloperUser, logger logr.Logger) (*DeveloperUserStatusReconciler, error) {
 	err := r.validateSpec(userCR)
 	if err != nil {
 		statusReconciler := NewDeveloperUserStatusReconciler(r.BaseReconciler, userCR, nil, "", nil, err)
@@ -236,13 +236,9 @@ func (r *DeveloperUserReconciler) reconcileSpec(ctx context.Context, userCR *cap
 		return statusReconciler, err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		statusReconciler := NewDeveloperUserStatusReconciler(r.BaseReconciler, userCR, parentAccountCR, providerAccount.AdminURLStr, nil, err)
-		return statusReconciler, err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(userCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperUserStatusReconciler(r.BaseReconciler, userCR, parentAccountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -315,7 +311,7 @@ func (r *DeveloperUserReconciler) findParentAccount(userCR *capabilitiesv1beta1.
 	return devAccountCR, nil
 }
 
-func (r *DeveloperUserReconciler) removeDeveloperUserFrom3scale(ctx context.Context, developerUser *capabilitiesv1beta1.DeveloperUser) error {
+func (r *DeveloperUserReconciler) removeDeveloperUserFrom3scale(developerUser *capabilitiesv1beta1.DeveloperUser) error {
 	logger := r.Logger().WithValues("developerUser", client.ObjectKey{Name: developerUser.Name, Namespace: developerUser.Namespace})
 
 	// Attempt to remove developerUser only if developerUser.Status.ID is present
@@ -338,12 +334,9 @@ func (r *DeveloperUserReconciler) removeDeveloperUserFrom3scale(ctx context.Cont
 		return err
 	}
 
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		return err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerUser.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

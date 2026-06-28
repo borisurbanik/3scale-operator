@@ -39,7 +39,7 @@ import (
 // ProxyConfigPromoteReconciler reconciles a ProxyConfigPromote object
 type ProxyConfigPromoteReconciler struct {
 	*reconcilers.BaseReconciler
-	CAProvider *controllerhelper.CAProvider
+	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 // +kubebuilder:rbac:groups=capabilities.3scale.net,resources=proxyconfigpromotes,verbs=get;list;watch;create;update;patch;delete
@@ -99,21 +99,9 @@ func (r *ProxyConfigPromoteReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// connect to the 3scale porta client
-	tlsConfig, err := r.CAProvider.TLSConfig(ctx)
-	if err != nil {
-		statusReconciler := NewProxyConfigPromoteStatusReconciler(r.BaseReconciler, proxyConfigPromote, "", 0, 0, err)
-		statusResult, statusErr := statusReconciler.Reconcile()
-		if statusErr != nil {
-			return ctrl.Result{}, statusErr
-		}
-		if statusResult.Requeue {
-			reqLogger.Info("Reconciling status not finished. Requeueing.")
-			return statusResult, nil
-		}
-		return ctrl.Result{}, err
-	}
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(proxyConfigPromote.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientWithTLSConfig(providerAccount, tlsConfig, insecureSkipVerify)
+	httpClient := r.HTTPClientSource.GetHTTPClient()
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
