@@ -1,0 +1,40 @@
+# Sensitive information
+.env
+secrets/
+*password*
+*credential*
+*apikey*
+
+# Large directories
+node_modules/
+.git/
+dist/
+build/
+vendor/
+
+# Binary and media files
+*.zip
+*.tar.gz
+*.mp4
+*.jpg
+*.png
+
+# Log files
+*.log
+logs/
+
+# Makefile-installed tools
+bin/
+
+# Generated TLS certificates and private keys (local dev / PR testing setup)
+**/*.crt
+**/*.key
+**/*.csr
+**/*.srl
+**/*.pem
+**/*.p12
+**/*.pfx
+config/certs/
+
+# Kustomize-processed secret files (written transiently by `make cluster/create/*` targets)
+config/dev-databases/**/secret-processed.yaml
