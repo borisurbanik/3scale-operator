@@ -22,7 +22,7 @@ func TestActiveDocReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// ActiveDocReconciler.reconcileSpec() calls HTTPClientSource after
+			// ActiveDocReconciler.reconcileSpec() calls LookupProviderAccount and then PortaClientFromAccount after
 			// checkExternalRefs. SystemName must be pre-set so that SetDefaults()
 			// returns false and no early requeue occurs.
 			name: "InvalidCABundle",
@@ -52,8 +52,9 @@ func TestActiveDocReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.ActiveDocReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.ActiveDocReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-activedoc"))
 
 			if tc.conditionCheck != nil {

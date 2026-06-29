@@ -275,7 +275,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Tenant"),
 			discoveryClientTenant,
 			mgr.GetEventRecorderFor("Tenant")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tenant")
 		os.Exit(1)
@@ -292,7 +291,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Backend"),
 			discoveryClientBackend,
 			mgr.GetEventRecorderFor("Backend")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Backend")
 		os.Exit(1)
@@ -309,7 +307,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Product"),
 			discoveryClientProduct,
 			mgr.GetEventRecorderFor("Product")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Product")
 		os.Exit(1)
@@ -358,7 +355,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("ActiveDoc"),
 			discoveryClientActiveDoc,
 			mgr.GetEventRecorderFor("ActiveDoc")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ActiveDoc")
 		os.Exit(1)
@@ -376,7 +372,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("CustomPolicyDefinition"),
 			discoveryClientCustomPolicyDefinition,
 			mgr.GetEventRecorderFor("CustomPolicyDefinition")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomPolicyDefinition")
 		os.Exit(1)
@@ -394,7 +389,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("DeveloperAccount"),
 			discoveryClientDeveloperAccount,
 			mgr.GetEventRecorderFor("DeveloperAccount")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DeveloperAccount")
 		os.Exit(1)
@@ -412,7 +406,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("DeveloperUser"),
 			discoveryClientDeveloperUser,
 			mgr.GetEventRecorderFor("DeveloperUser")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DeveloperUser")
 		os.Exit(1)
@@ -432,7 +425,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("ProxyConfigPromote"),
 			discoveryProxyConfigPromote,
 			mgr.GetEventRecorderFor("ProxyConfigPromote")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ProxyConfigPromote")
 		os.Exit(1)
@@ -450,7 +442,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Application"),
 			discoveryApplication,
 			mgr.GetEventRecorderFor("Application")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Application")
 		os.Exit(1)
@@ -468,7 +459,6 @@ func main() {
 			ctrl.Log.WithName("controllers").WithName("Application"),
 			discoveryApplicationAuth,
 			mgr.GetEventRecorderFor("Application")),
-		HTTPClientSource: watcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Application")
 		os.Exit(1)

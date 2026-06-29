@@ -39,7 +39,6 @@ import (
 // ProductReconciler reconciles a Product object
 type ProductReconciler struct {
 	*reconcilers.BaseReconciler
-	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 const productFinalizer = "product.capabilities.3scale.net/finalizer"
@@ -207,8 +206,7 @@ func (r *ProductReconciler) reconcile(productResource *capabilitiesv1beta1.Produ
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(productResource.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewProductStatusReconciler(r.BaseReconciler, productResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -402,8 +400,7 @@ func (r *ProductReconciler) removeProductFrom3scale(product *capabilitiesv1beta1
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(product.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

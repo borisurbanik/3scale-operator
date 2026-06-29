@@ -3,7 +3,6 @@ package reconcilers
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/3scale/3scale-operator/pkg/helper"
@@ -25,17 +24,6 @@ import (
 )
 
 var log = logf.Log.WithName("reconcilers")
-
-// HTTPClientSource is implemented by any value that can supply an *http.Client
-// backed by the current CA bundle.  The returned client must be used only for
-// the duration of the current reconcile invocation; it must never be stored on a
-// struct field.  This invariant ensures every requeue fetches a client that
-// reflects the current CA bundle without sharing state across reconciles.
-// The insecure_skip_verify annotation is a per-CR concern and is handled by
-// the PortaClientFromAccount / PortaClientFromURLWithClient constructors, not here.
-type HTTPClientSource interface {
-	GetHTTPClient() *http.Client
-}
 
 // MutateFn is a function which mutates the existing object into it's desired state.
 type MutateFn func(existing, desired client.Object) (bool, error)

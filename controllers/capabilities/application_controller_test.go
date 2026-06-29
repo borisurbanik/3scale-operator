@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -26,14 +25,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
-
-// workingHTTPClientSource returns a plain *http.Client with system roots,
-// for tests that need a real (non-failing) HTTP connection.
-type workingHTTPClientSource struct{}
-
-func (workingHTTPClientSource) GetHTTPClient() *http.Client {
-	return &http.Client{}
-}
 
 func getApplicationPlanListByProductJson() *client.ApplicationPlanJSONList {
 	applicationPlanListByProductJson := &client.ApplicationPlanJSONList{
@@ -116,7 +107,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			product: []*capabilitiesv1beta1.Product{getProductCR()},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				// No error is returned
 				require.Error(t, err)
@@ -159,7 +150,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -225,7 +216,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 				}}),
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				require.NoError(t, err)
 
@@ -268,7 +259,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(context.Background(), req)
 				// No error is returned
 				require.NoError(t, err)
@@ -316,7 +307,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -376,7 +367,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 
@@ -461,7 +452,7 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 			},
 			testBody: func(t *testing.T, r *reconcilers.BaseReconciler, req reconcile.Request) {
 				ctx := context.Background()
-				applicationReconciler := ApplicationReconciler{BaseReconciler: r, HTTPClientSource: workingHTTPClientSource{}}
+				applicationReconciler := ApplicationReconciler{BaseReconciler: r}
 				_, err := applicationReconciler.Reconcile(ctx, req)
 				require.NoError(t, err)
 

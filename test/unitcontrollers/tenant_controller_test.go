@@ -23,7 +23,7 @@ func TestTenantReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// TenantReconciler calls setupPortaClient (which calls HTTPClientSource)
+			// TenantReconciler calls setupPortaClient (which calls PortaClientFromURLWithClient)
 			// as the very first action after fetching the CR — no guards to bypass.
 			// The CA error is absorbed by reconcileStatus() and returned as
 			// {Requeue: true}, nil, so the error is checked via the status
@@ -79,8 +79,9 @@ func TestTenantReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.TenantReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.TenantReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-tenant"))
 
 			if tc.conditionCheck != nil {

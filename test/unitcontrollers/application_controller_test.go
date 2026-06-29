@@ -26,11 +26,11 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// ApplicationReconciler calls HTTPClientSource after the metadata guard
+			// ApplicationReconciler calls LookupProviderAccount and then PortaClientFromAccount after the metadata guard
 			// (finalizer + ownerRef). The CR is pre-seeded with the finalizer and
 			// the DeveloperAccount ownerRef so that reconcileMetadata() returns
 			// false and the first Reconcile call proceeds directly to
-			// LookupProviderAccount → HTTPClientSource.
+			// LookupProviderAccount → PortaClientFromAccount.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
 				func() *capabilitiesv1beta1.Application {
@@ -131,8 +131,9 @@ func TestApplicationReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.ApplicationReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.ApplicationReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-app"))
 
 			if tc.conditionCheck != nil {

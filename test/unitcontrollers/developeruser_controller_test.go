@@ -25,7 +25,7 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// DeveloperUserReconciler.reconcileSpec() calls HTTPClientSource after:
+			// DeveloperUserReconciler.reconcileSpec() calls LookupProviderAccount and then PortaClientFromAccount after:
 			//   1. the metadata guard (finalizer)
 			//   2. the ownerRef guard (EnsureOwnerReference)
 			//   3. findParentAccount — the parent DeveloperAccount must be IsReady()
@@ -99,8 +99,9 @@ func TestDeveloperUserReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.DeveloperUserReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.DeveloperUserReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-user"))
 
 			if tc.conditionCheck != nil {

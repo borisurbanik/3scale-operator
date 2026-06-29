@@ -22,7 +22,7 @@ func TestCustomPolicyDefinitionReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// CustomPolicyDefinitionReconciler.reconcileSpec() calls HTTPClientSource
+			// CustomPolicyDefinitionReconciler.reconcileSpec() calls PortaClientFromAccount
 			// directly with no finalizer guard.
 			name: "InvalidCABundle",
 			objects: []runtime.Object{
@@ -54,8 +54,9 @@ func TestCustomPolicyDefinitionReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.CustomPolicyDefinitionReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.CustomPolicyDefinitionReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-cpd"))
 
 			if tc.conditionCheck != nil {

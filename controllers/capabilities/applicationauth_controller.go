@@ -42,7 +42,6 @@ import (
 // ApplicationAuthReconciler reconciles a ApplicationAuth object
 type ApplicationAuthReconciler struct {
 	*reconcilers.BaseReconciler
-	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 type AuthSecret struct {
@@ -167,8 +166,7 @@ func (r *ApplicationAuthReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// connect to the 3scale porta client
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(applicationAuth.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

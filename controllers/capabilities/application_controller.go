@@ -41,7 +41,6 @@ import (
 // ApplicationReconciler reconciles a Application object
 type ApplicationReconciler struct {
 	*reconcilers.BaseReconciler
-	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 const (
@@ -144,8 +143,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -308,8 +306,7 @@ func (r *ApplicationReconciler) removeApplicationFrom3scale(application *capabil
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

@@ -2,12 +2,13 @@ package test
 
 import (
 	"context"
-	"errors"
-	"net/http"
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 
 	capabilitiesv1alpha1 "github.com/3scale/3scale-operator/apis/capabilities/v1alpha1"
 	capabilitiesv1beta1 "github.com/3scale/3scale-operator/apis/capabilities/v1beta1"
+	configuration "github.com/3scale/3scale-operator/controllers/configuration"
 	"github.com/3scale/3scale-operator/pkg/reconcilers"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,34 +24,6 @@ import (
 )
 
 const caTestNamespace = "operator-unittest"
-
-// failingTransport is an http.RoundTripper that always returns a TLS-like error,
-// simulating the effect of a misconfigured or invalid CA bundle.
-type failingTransport struct{}
-
-func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, errors.New("tls: failed to verify certificate: x509: certificate signed by unknown authority")
-}
-
-// workingHTTPClientSource returns a real *http.Client with system roots.
-// Use for tests that don't exercise CA errors.
-type workingHTTPClientSource struct{}
-
-func (workingHTTPClientSource) GetHTTPClient() *http.Client {
-	return &http.Client{}
-}
-
-// failingHTTPClientSource returns a *http.Client whose transport always fails
-// with a TLS-like error.  Use for CA error surfacing tests.
-type failingHTTPClientSource struct{}
-
-func (failingHTTPClientSource) GetHTTPClient() *http.Client {
-	return &http.Client{Transport: failingTransport{}}
-}
-
-// Verify both types satisfy the interface at compile time.
-var _ reconcilers.HTTPClientSource = workingHTTPClientSource{}
-var _ reconcilers.HTTPClientSource = failingHTTPClientSource{}
 
 // providerAccountSecret returns the well-known secret that LookupProviderAccount
 // reads when no ProviderAccountRef is set on a CR.
@@ -69,9 +42,8 @@ func providerAccountSecret() *corev1.Secret {
 }
 
 // setupCATestReconciler builds a BaseReconciler backed by a fake client
-// pre-seeded with the supplied objects, and a failingHTTPClientSource test
-// double that simulates a TLS error on every outbound request.
-func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconcilers.BaseReconciler, reconcilers.HTTPClientSource) {
+// pre-seeded with the supplied objects.
+func setupCATestReconciler(t *testing.T, objects ...runtime.Object) *reconcilers.BaseReconciler {
 	t.Helper()
 	s := scheme.Scheme
 	if err := capabilitiesv1beta1.AddToScheme(s); err != nil {
@@ -102,7 +74,22 @@ func setupCATestReconciler(t *testing.T, objects ...runtime.Object) (*reconciler
 		clientset.Discovery(), recorder,
 	)
 
-	return base, failingHTTPClientSource{}
+	return base
+}
+
+// setupCAWithFailingTLS installs a *tls.Config with an empty RootCAs pool,
+// causing every outbound TLS connection to fail.  The previous config is
+// restored automatically when the test completes.
+//
+// IMPORTANT: must NOT be called from parallel tests — t.Setenv is used as a guard.
+func setupCAWithFailingTLS(t *testing.T) {
+	t.Helper()
+	t.Setenv("_TEST_CA_GUARD", "1")
+	badTLSConfig := &tls.Config{RootCAs: x509.NewCertPool()}
+
+	prev := configuration.GetTLSConfig()
+	configuration.SetTLSConfig(badTLSConfig)
+	t.Cleanup(func() { configuration.SetTLSConfig(prev) })
 }
 
 func reqFor(ns, name string) reconcile.Request {

@@ -48,7 +48,6 @@ const (
 // DeveloperAccountReconciler reconciles a DeveloperAccount object
 type DeveloperAccountReconciler struct {
 	*reconcilers.BaseReconciler
-	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 // blank assignment to verify that DeveloperAccountReconciler implements reconcile.Reconciler
@@ -221,8 +220,7 @@ func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(accountCR.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -274,8 +272,7 @@ func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerA
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerAccountCR.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(developerAccount, httpClient, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(developerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

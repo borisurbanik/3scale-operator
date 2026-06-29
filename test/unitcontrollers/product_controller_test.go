@@ -23,7 +23,7 @@ func TestProductReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// ProductReconciler.reconcile() calls HTTPClientSource after the finalizer
+			// ProductReconciler.reconcile() calls LookupProviderAccount and then PortaClientFromAccount after the finalizer
 			// guard. The CR is pre-seeded with the finalizer, a "hits" metric, and
 			// the required "apicast" policy so that SetDefaults() returns false and
 			// no early requeue occurs.
@@ -69,8 +69,9 @@ func TestProductReconciler_Reconcile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			base, failingSource := setupCATestReconciler(t, tc.objects...)
-			r := &capabilitiescontrollers.ProductReconciler{BaseReconciler: base, HTTPClientSource: failingSource}
+			base := setupCATestReconciler(t, tc.objects...)
+			setupCAWithFailingTLS(t)
+			r := &capabilitiescontrollers.ProductReconciler{BaseReconciler: base}
 			_, err := r.Reconcile(context.Background(), reqFor(caTestNamespace, "test-product"))
 
 			if tc.conditionCheck != nil {

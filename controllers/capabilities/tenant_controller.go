@@ -64,7 +64,6 @@ const (
 // TenantReconciler reconciles a Tenant object
 type TenantReconciler struct {
 	*reconcilers.BaseReconciler
-	HTTPClientSource reconcilers.HTTPClientSource
 }
 
 // blank assignment to verify that TenantReconciler implements reconcile.Reconciler
@@ -245,8 +244,7 @@ func (r *TenantReconciler) setupPortaClient(tenantCR *capabilitiesv1alpha1.Tenan
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(tenantCR.GetAnnotations())
-	httpClient := r.HTTPClientSource.GetHTTPClient()
-	portaClient, err := controllerhelper.PortaClientFromURLWithClient(adminURL, masterAccessToken, httpClient, insecureSkipVerify)
+	portaClient, err := controllerhelper.PortaClientFromURLWithClient(adminURL, masterAccessToken, insecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
