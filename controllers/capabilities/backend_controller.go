@@ -207,7 +207,7 @@ func (r *BackendReconciler) reconcile(backendResource *capabilitiesv1beta1.Backe
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(backendResource.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewBackendStatusReconciler(r.BaseReconciler, backendResource, nil, providerAccount.AdminURLStr, err)
 		return statusReconciler, err
@@ -299,7 +299,7 @@ func (r *BackendReconciler) removeBackendFrom3scale(backend *capabilitiesv1beta1
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(backend.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

@@ -143,7 +143,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -306,7 +306,7 @@ func (r *ApplicationReconciler) removeApplicationFrom3scale(application *capabil
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(application.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

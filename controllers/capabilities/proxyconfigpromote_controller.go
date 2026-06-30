@@ -99,7 +99,7 @@ func (r *ProxyConfigPromoteReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// connect to the 3scale porta client
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(proxyConfigPromote.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

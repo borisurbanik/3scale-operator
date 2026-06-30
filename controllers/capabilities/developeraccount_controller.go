@@ -220,7 +220,7 @@ func (r *DeveloperAccountReconciler) reconcileSpec(accountCR *capabilitiesv1beta
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(accountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewDeveloperAccountStatusReconciler(r.BaseReconciler, accountCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err
@@ -272,7 +272,7 @@ func (r *DeveloperAccountReconciler) removeDeveloperAccountFrom3scale(developerA
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(developerAccountCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(developerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(developerAccount, insecureSkipVerify)
 	if err != nil {
 		return err
 	}

@@ -40,7 +40,7 @@ func setTLSConfigForTest(t *testing.T, cfg *tls.Config) {
 // is rejected before any network I/O.
 func TestPortaClientFromAccount_InvalidURL(t *testing.T) {
 	providerAccount := &ProviderAccount{AdminURLStr: ":foo", Token: "some token"}
-	_, err := PortaClientFromAccount(providerAccount, false)
+	_, err := PortaClient(providerAccount, false)
 	assert(t, err != nil, "error should not be nil")
 }
 
@@ -48,20 +48,20 @@ func TestPortaClientFromAccount_InvalidURL(t *testing.T) {
 // usable client.
 func TestPortaClientFromAccount_Valid(t *testing.T) {
 	providerAccount := &ProviderAccount{AdminURLStr: "http://somedomain.example.com", Token: "some token"}
-	_, err := PortaClientFromAccount(providerAccount, false)
+	_, err := PortaClient(providerAccount, false)
 	ok(t, err)
 }
 
-// TestPortaClientFromURLWithClient_InvalidURL verifies that an empty URL (no
+// TestPortaClientFromURL_InvalidURL verifies that an empty URL (no
 // scheme, no host) is rejected.
-func TestPortaClientFromURLWithClient_InvalidURL(t *testing.T) {
-	_, err := PortaClientFromURLWithClient(&url.URL{}, "some token", false)
+func TestPortaClientFromURL_InvalidURL(t *testing.T) {
+	_, err := PortaClientFromURL(&url.URL{}, "some token", false)
 	assert(t, err != nil, "error should not be nil")
 }
 
-// TestPortaClientFromURLWithClient_TLSRejectUntrusted: with no TLS config set,
+// TestPortaClientFromURL_TLSRejectUntrusted: with no TLS config set,
 // a self-signed httptest TLS server must be rejected.
-func TestPortaClientFromURLWithClient_TLSRejectUntrusted(t *testing.T) {
+func TestPortaClientFromURL_TLSRejectUntrusted(t *testing.T) {
 	srv := httptest.NewTLSServer(backendListHandler(t))
 	defer srv.Close()
 
@@ -70,7 +70,7 @@ func TestPortaClientFromURLWithClient_TLSRejectUntrusted(t *testing.T) {
 
 	setTLSConfigForTest(t, nil)
 
-	c, err := PortaClientFromURLWithClient(srvURL, "token", false)
+	c, err := PortaClientFromURL(srvURL, "token", false)
 	ok(t, err)
 
 	_, reqErr := c.ListBackendApis()
@@ -78,9 +78,9 @@ func TestPortaClientFromURLWithClient_TLSRejectUntrusted(t *testing.T) {
 	assert(t, strings.Contains(reqErr.Error(), "certificate"), "expected certificate error, got: %v", reqErr)
 }
 
-// TestPortaClientFromURLWithClient_TLSMatchingCA: setting the package-level TLS
+// TestPortaClientFromURL_TLSMatchingCA: setting the package-level TLS
 // config to trust the server's own CA must allow a successful request.
-func TestPortaClientFromURLWithClient_TLSMatchingCA(t *testing.T) {
+func TestPortaClientFromURL_TLSMatchingCA(t *testing.T) {
 	srv := httptest.NewTLSServer(backendListHandler(t))
 	defer srv.Close()
 
@@ -97,16 +97,16 @@ func TestPortaClientFromURLWithClient_TLSMatchingCA(t *testing.T) {
 	srvURL, err := url.Parse(srv.URL)
 	ok(t, err)
 
-	c, err := PortaClientFromURLWithClient(srvURL, "token", false)
+	c, err := PortaClientFromURL(srvURL, "token", false)
 	ok(t, err)
 
 	_, reqErr := c.ListBackendApis()
 	ok(t, reqErr)
 }
 
-// TestPortaClientFromURLWithClient_InsecureSkipVerify: insecureSkipVerify=true
+// TestPortaClientFromURL_InsecureSkipVerify: insecureSkipVerify=true
 // must accept an untrusted server certificate regardless of the TLS config.
-func TestPortaClientFromURLWithClient_InsecureSkipVerify(t *testing.T) {
+func TestPortaClientFromURL_InsecureSkipVerify(t *testing.T) {
 	srv := httptest.NewTLSServer(backendListHandler(t))
 	defer srv.Close()
 
@@ -115,7 +115,7 @@ func TestPortaClientFromURLWithClient_InsecureSkipVerify(t *testing.T) {
 
 	setTLSConfigForTest(t, nil)
 
-	c, err := PortaClientFromURLWithClient(srvURL, "token", true)
+	c, err := PortaClientFromURL(srvURL, "token", true)
 	ok(t, err)
 
 	_, reqErr := c.ListBackendApis()

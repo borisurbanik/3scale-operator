@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -238,13 +237,8 @@ func (r *TenantReconciler) setupPortaClient(tenantCR *capabilitiesv1alpha1.Tenan
 		return nil, err
 	}
 
-	adminURL, err := url.Parse(tenantCR.Spec.SystemMasterUrl)
-	if err != nil {
-		return nil, err
-	}
-
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(tenantCR.GetAnnotations())
-	portaClient, err := controllerhelper.PortaClientFromURLWithClient(adminURL, masterAccessToken, insecureSkipVerify)
+	portaClient, err := controllerhelper.PortaClientFromURLString(tenantCR.Spec.SystemMasterUrl, masterAccessToken, insecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}

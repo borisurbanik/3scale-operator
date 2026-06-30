@@ -20,27 +20,33 @@ type ProviderAccount struct {
 	Token       string
 }
 
-// PortaClientFromAccount instantiates a ThreeScaleClient from a ProviderAccount.
+// PortaClient instantiates a ThreeScaleClient from a ProviderAccount.
 // When insecureSkipVerify is true, the CA bundle is ignored and an insecure
 // client is used instead.
-func PortaClientFromAccount(account *ProviderAccount, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
-	adminURL, err := url.Parse(account.AdminURLStr)
+func PortaClient(providerAccount *ProviderAccount, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	return PortaClientFromURLString(providerAccount.AdminURLStr, providerAccount.Token, insecureSkipVerify)
+}
+
+// PortaClientFromURLString instantiates a ThreeScaleClient from an admin URL string
+// and access token.  When insecureSkipVerify is true, the CA bundle is ignored.
+func PortaClientFromURLString(adminURLStr, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+	adminURL, err := url.Parse(adminURLStr)
 	if err != nil {
 		return nil, err
 	}
-	return PortaClientFromURLWithClient(adminURL, account.Token, insecureSkipVerify)
+	return PortaClientFromURL(adminURL, token, insecureSkipVerify)
 }
 
-// PortaClientFromURLWithClient instantiates a ThreeScaleClient from an admin URL
+// PortaClientFromURL instantiates a ThreeScaleClient from an admin URL
 // and access token.  When insecureSkipVerify is true, the CA bundle is ignored.
-func PortaClientFromURLWithClient(adminURL *url.URL, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
+func PortaClientFromURL(url *url.URL, token string, insecureSkipVerify bool) (*threescaleapi.ThreeScaleClient, error) {
 	var httpClient *http.Client
 	if insecureSkipVerify {
 		httpClient = buildHTTPClient(&tls.Config{InsecureSkipVerify: true}) //nolint:gosec
 	} else {
 		httpClient = buildHTTPClient(configuration.GetTLSConfig())
 	}
-	adminPortal, err := threescaleapi.NewAdminPortal(adminURL.Scheme, adminURL.Hostname(), helper.PortFromURL(adminURL))
+	adminPortal, err := threescaleapi.NewAdminPortal(url.Scheme, url.Hostname(), helper.PortFromURL(url))
 	if err != nil {
 		return nil, err
 	}

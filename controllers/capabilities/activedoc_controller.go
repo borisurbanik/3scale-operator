@@ -145,7 +145,7 @@ func (r *ActiveDocReconciler) reconcileSpec(activeDocCR *capabilitiesv1beta1.Act
 	}
 
 	insecureSkipVerify := controllerhelper.GetInsecureSkipVerifyAnnotation(activeDocCR.GetAnnotations())
-	threescaleAPIClient, err := controllerhelper.PortaClientFromAccount(providerAccount, insecureSkipVerify)
+	threescaleAPIClient, err := controllerhelper.PortaClient(providerAccount, insecureSkipVerify)
 	if err != nil {
 		statusReconciler := NewActiveDocStatusReconciler(r.BaseReconciler, activeDocCR, providerAccount.AdminURLStr, nil, err)
 		return statusReconciler, err

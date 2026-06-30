@@ -23,7 +23,7 @@ func TestTenantReconciler_Reconcile(t *testing.T) {
 		conditionCheck func(err error, cl client.Client) bool
 	}{
 		{
-			// TenantReconciler calls setupPortaClient (which calls PortaClientFromURLWithClient)
+			// TenantReconciler calls setupPortaClient (which calls PortaClientFromURL)
 			// as the very first action after fetching the CR — no guards to bypass.
 			// The CA error is absorbed by reconcileStatus() and returned as
 			// {Requeue: true}, nil, so the error is checked via the status
