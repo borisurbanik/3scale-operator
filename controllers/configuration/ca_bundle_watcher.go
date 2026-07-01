@@ -116,6 +116,7 @@ func (r *CABundleWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			SetTLSConfig(nil)
+			logger.Info("CA bundle ConfigMap not found; using system default CAs", "namespace", r.Namespace, "configmap", CABundleConfigMapName)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -130,7 +131,14 @@ func (r *CABundleWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, nil
 	}
 
+	if tlsConfig == nil {
+		SetTLSConfig(nil)
+		logger.Info("CA bundle ConfigMap key absent; using system default CAs", "namespace", r.Namespace, "configmap", CABundleConfigMapName, "key", CABundleConfigMapKey)
+		return ctrl.Result{}, nil
+	}
+
 	SetTLSConfig(tlsConfig)
+	logger.Info("CA bundle updated and applied", "namespace", r.Namespace, "configmap", CABundleConfigMapName)
 	return ctrl.Result{}, nil
 }
 

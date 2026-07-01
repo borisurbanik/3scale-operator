@@ -52,6 +52,20 @@ func TestPortaClientFromAccount_Valid(t *testing.T) {
 	ok(t, err)
 }
 
+// TestPortaClientFromURLString_InvalidURL verifies that an unparseable URL string
+// is rejected before any network I/O.
+func TestPortaClientFromURLString_InvalidURL(t *testing.T) {
+	_, err := PortaClientFromURLString(":foo", "some token", false)
+	assert(t, err != nil, "error should not be nil")
+}
+
+// TestPortaClientFromURLString_Valid verifies that a valid URL string produces a
+// usable client.
+func TestPortaClientFromURLString_Valid(t *testing.T) {
+	_, err := PortaClientFromURLString("http://somedomain.example.com", "some token", false)
+	ok(t, err)
+}
+
 // TestPortaClientFromURL_InvalidURL verifies that an empty URL (no
 // scheme, no host) is rejected.
 func TestPortaClientFromURL_InvalidURL(t *testing.T) {
