@@ -26,9 +26,26 @@ kubectl create configmap threescale-ca-bundle \
   -n <operator-namespace>
 ```
 
-### OpenShift cluster CA injection
+### OpenShift ingress CA (router-ca)
 
-On OpenShift, label the ConfigMap to have the Cluster Network Operator (CNO) automatically populate it with the cluster's merged CA bundle (user-defined proxy CA + built-in CAs):
+On OpenShift, the ingress controller uses a self-signed CA to sign route serving certificates. Extract it from the `router-ca` secret in the `openshift-ingress-operator` namespace:
+
+```bash
+oc get secret router-ca -n openshift-ingress-operator \
+  -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/router-ca.crt
+
+kubectl create configmap threescale-ca-bundle \
+  --from-file=ca-bundle.crt=/tmp/router-ca.crt \
+  -n <operator-namespace>
+```
+
+This covers the common case where the 3scale Admin API is served behind an OpenShift Route signed by the cluster's ingress CA.
+
+> **Note:** The `router-ca` secret contains only the ingress-specific CA, not the system trust bundle. If the operator also needs to connect to endpoints signed by public CAs, concatenate the ingress CA with the system bundle or use [trust-manager](operator-ca-bundle-trust-manager.md) to merge sources.
+
+### OpenShift proxy CA injection (optional)
+
+If your cluster uses a custom proxy CA and you need the operator to trust it, label an empty ConfigMap to have the Cluster Network Operator (CNO) populate it with the merged proxy trust bundle:
 
 ```bash
 kubectl create configmap threescale-ca-bundle -n <operator-namespace>
@@ -37,9 +54,7 @@ kubectl label configmap threescale-ca-bundle \
   -n <operator-namespace>
 ```
 
-The CNO populates the `ca-bundle.crt` key within a few seconds. This covers the common case where the 3scale Admin API is served behind an OpenShift Route signed by a CA that is part of the cluster proxy trust bundle.
-
-> **Note:** Once the `inject-trusted-cabundle=true` label is present, the CNO takes full ownership of the `ca-bundle.crt` key and overwrites any manual edits. To combine the cluster CA with an additional custom CA, see [Combining CA sources with trust-manager](operator-ca-bundle-trust-manager.md).
+> **Note:** The CNO-injected bundle contains the proxy CA and system trusted CAs, but does **not** include the ingress router CA. If you need both, use [trust-manager](operator-ca-bundle-trust-manager.md) to combine the ingress CA with the proxy trust bundle.
 
 ### Example ConfigMap manifest
 
